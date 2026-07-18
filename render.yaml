@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: neet-mcq-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # you'll paste the real value in Render's dashboard, not here
+    plan: free

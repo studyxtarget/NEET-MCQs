@@ -1,0 +1,3 @@
+# Rename this file to .env after downloading, and fill in your real key.
+# Never commit the real .env file to git.
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxx

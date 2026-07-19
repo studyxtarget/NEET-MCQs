@@ -1,5 +1,5 @@
 """
-Calls the Claude API to turn raw study-material text into structured MCQs.
+Calls the Gemini API to turn raw study-material text into structured MCQs.
 
 Two modes:
   - EXTRACT_EXISTING: the PDF already contains real PYQs (like a PYQ bank).
@@ -11,12 +11,14 @@ Two modes:
 import os
 import json
 import re
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from models.schemas import GenerationMode, Difficulty
 
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-MODEL = "claude-sonnet-4-6"
+# gemini-2.5-flash is Google's current price/performance workhorse model.
+MODEL = "gemini-2.5-flash"
 
 EXTRACT_SYSTEM_PROMPT = """You are formatting an existing bank of NEET previous-year \
 questions (PYQs) into structured JSON. Do not invent new questions, do not change \
@@ -93,18 +95,28 @@ Study material:
 Return the JSON array now."""
 
     try:
-        response = client.messages.create(
+        response = client.models.generate_content(
             model=MODEL,
-            max_tokens=4000,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                # Forces Gemini to return clean JSON with no markdown fences
+                # or leading/trailing prose -- this is what was missing before
+                # and caused intermittent JSON-parse failures.
+                response_mime_type="application/json",
+                max_output_tokens=8000,
+            ),
         )
     except Exception as e:
-        raise AIGenerationError(f"Claude API call failed: {e}")
+        raise AIGenerationError(f"Gemini API call failed: {e}")
 
-    raw_text = "".join(
-        block.text for block in response.content if block.type == "text"
-    )
+    raw_text = response.text or ""
+    if not raw_text.strip():
+        raise AIGenerationError(
+            "Gemini returned an empty response (often means it hit the "
+            "safety filter, or max_output_tokens was too low for the "
+            "requested number of questions -- try fewer questions per call)."
+        )
 
     return _parse_json_array(raw_text)
 
@@ -123,6 +135,14 @@ def _parse_json_array(raw_text: str) -> list[dict]:
         if not match:
             raise AIGenerationError(f"Could not parse AI response as JSON: {e}")
         data = json.loads(match.group(0))
+
+    # Gemini occasionally wraps the array in an object like {"questions": [...]}
+    # even when told not to -- unwrap that case defensively.
+    if isinstance(data, dict):
+        for key in ("questions", "mcqs", "data"):
+            if key in data and isinstance(data[key], list):
+                data = data[key]
+                break
 
     if not isinstance(data, list):
         raise AIGenerationError("AI response was valid JSON but not a list")

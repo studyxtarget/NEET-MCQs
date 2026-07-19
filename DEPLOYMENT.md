@@ -55,7 +55,7 @@ list it. It's already in `backend/.gitignore`.
    - Build Command: `pip install -r requirements.txt`
    - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 3. Under **Environment**, add:
-   - `ANTHROPIC_API_KEY` = your real key (never commit this to GitHub)
+   - `GEMINI_API_KEY` = your real key (never commit this to GitHub)
 4. Deploy. You'll get a URL like `https://neet-mcq-backend.onrender.com`.
 5. Test it: `https://neet-mcq-backend.onrender.com/health` should return
    `{"status": "ok"}`.
@@ -83,7 +83,7 @@ Once you know your real frontend URL, tighten this:
 ```python
 allow_origins=["https://neet-mcq.vercel.app"]
 ```
-Otherwise any website can call your backend and burn your Claude API quota.
+Otherwise any website can call your backend and burn your Gemini API quota.
 
 ## 5. Test end-to-end
 
@@ -99,6 +99,6 @@ Carried over from `backend/README.md` — worth fixing before real traffic:
 - In-memory storage (`DOCUMENTS`, `QUIZZES` dicts) — add Postgres/Supabase
   so data survives a redeploy or backend restart.
 - No auth or per-user rate limiting on `/generate` — each call costs a
-  Claude API request.
+  Gemini API request.
 - Long PDFs aren't chunked yet in `/generate` (the `chunk_text()` helper
   exists in `pdf_extractor.py` but isn't wired in).

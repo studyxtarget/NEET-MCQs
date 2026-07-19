@@ -15,7 +15,7 @@ neet-mcq/
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # add your ANTHROPIC_API_KEY
+cp .env.example .env   # add your GEMINI_API_KEY
 uvicorn main:app --reload --port 8000
 ```
 

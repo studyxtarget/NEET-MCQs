@@ -5,7 +5,7 @@ export default function Quiz({ quizData, onFinished }) {
   const { doc_id: docId, questions, settings = {} } = quizData;
   const {
     timerEnabled = false,
-    secondsPerQuestion = 60,
+    totalSeconds = null, // whole-quiz budget, e.g. 15 questions -> 900s
     negativeMarking = false,
     correctMarks = 4,
     negativeMarks = 1,
@@ -14,37 +14,44 @@ export default function Quiz({ quizData, onFinished }) {
   const [current, setCurrent] = useState(0);
   const [picked, setPicked] = useState({}); // question_index -> selected_index | "skipped"
   const [timings, setTimings] = useState({}); // question_index -> seconds spent
-  const [secondsLeft, setSecondsLeft] = useState(secondsPerQuestion);
   const [elapsedTotal, setElapsedTotal] = useState(0);
+  const [totalSecondsLeft, setTotalSecondsLeft] = useState(totalSeconds);
+  const [autoSubmitted, setAutoSubmitted] = useState(false);
   const questionStartRef = useRef(Date.now());
+  const finishQuizRef = useRef(() => {});
 
   const q = questions[current];
   const isLast = current === questions.length - 1;
   const hasAnswered = picked[current] !== undefined;
 
-  // Reset the per-question clock whenever the question changes.
+  // Reset the per-question clock whenever the question changes (used for
+  // the per-question time stats shown in the result screen).
   useEffect(() => {
     questionStartRef.current = Date.now();
-    setSecondsLeft(secondsPerQuestion);
-  }, [current, secondsPerQuestion]);
+  }, [current]);
 
-  // Overall elapsed timer (always runs, used for the "Total Time Taken" stat).
+  // Overall elapsed timer (always runs, used for the "Total Time Taken" stat
+  // when no exam timer is configured).
   useEffect(() => {
     const id = setInterval(() => setElapsedTotal((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Per-question countdown -- only active if the exam has a timer configured.
+  // Whole-quiz countdown -- e.g. 15 questions in 15 minutes. Auto-submits
+  // whatever is answered so far (unanswered questions count as skipped)
+  // the moment it hits zero.
   useEffect(() => {
-    if (!timerEnabled || hasAnswered) return;
-    if (secondsLeft <= 0) {
-      recordAnswer("skipped");
+    if (!timerEnabled || totalSecondsLeft === null) return;
+    if (totalSecondsLeft <= 0) {
+      if (!autoSubmitted) {
+        setAutoSubmitted(true);
+        finishQuizRef.current();
+      }
       return;
     }
-    const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    const id = setTimeout(() => setTotalSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, timerEnabled, hasAnswered]);
+  }, [totalSecondsLeft, timerEnabled, autoSubmitted]);
 
   const recordAnswer = (value) => {
     const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
@@ -81,6 +88,7 @@ export default function Quiz({ quizData, onFinished }) {
     }).catch(() => {});
     onFinished(result);
   };
+  finishQuizRef.current = finishQuiz;
 
   const handleNext = () => {
     if (!isLast) {
@@ -109,13 +117,11 @@ export default function Quiz({ quizData, onFinished }) {
         </div>
         <span
           className={`font-mono text-xs whitespace-nowrap ${
-            timerEnabled && secondsLeft <= 10 && !hasAnswered
-              ? "text-rose"
-              : "text-[#9FC9BE]"
+            timerEnabled && totalSecondsLeft <= 60 ? "text-rose" : "text-[#9FC9BE]"
           }`}
         >
           {timerEnabled
-            ? `${String(Math.max(secondsLeft, 0)).padStart(2, "0")}s`
+            ? formatClock(Math.max(totalSecondsLeft, 0))
             : formatClock(elapsedTotal)}
         </span>
       </div>

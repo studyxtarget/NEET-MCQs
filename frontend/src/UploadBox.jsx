@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { uploadPdf, generateQuiz } from "./api";
 
 const SUBJECTS = ["Biology", "Physics", "Chemistry"];
@@ -14,13 +14,20 @@ export default function UploadBox({ onQuizReady }) {
 
   // Quick-win settings: timer + negative marking
   const [timerEnabled, setTimerEnabled] = useState(false);
-  const [secondsPerQuestion, setSecondsPerQuestion] = useState(60);
+  const [totalMinutes, setTotalMinutes] = useState(numQuestions); // default: 1 min/question
+  const [minutesTouched, setMinutesTouched] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(true);
   const [correctMarks, setCorrectMarks] = useState(4);
   const [negativeMarks, setNegativeMarks] = useState(1);
 
   const [status, setStatus] = useState("idle"); // idle | uploading | ready | generating | error
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Keep the suggested exam duration in sync with question count (1 min/question)
+  // until the person overrides it themselves.
+  useEffect(() => {
+    if (!minutesTouched) setTotalMinutes(numQuestions);
+  }, [numQuestions, minutesTouched]);
 
   const handleFileChange = async (e) => {
     const selected = e.target.files?.[0];
@@ -58,7 +65,7 @@ export default function UploadBox({ onQuizReady }) {
         ...quiz,
         settings: {
           timerEnabled,
-          secondsPerQuestion: timerEnabled ? secondsPerQuestion : null,
+          totalSeconds: timerEnabled ? Number(totalMinutes) * 60 : null,
           negativeMarking,
           correctMarks: Number(correctMarks) || 0,
           negativeMarks: negativeMarking ? Number(negativeMarks) || 0 : 0,
@@ -204,22 +211,31 @@ export default function UploadBox({ onQuizReady }) {
                   checked={timerEnabled}
                   onChange={(e) => setTimerEnabled(e.target.checked)}
                 />
-                Timer per question
+                Timer for whole quiz
               </label>
               {timerEnabled && (
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    min={10}
-                    max={600}
-                    value={secondsPerQuestion}
-                    onChange={(e) => setSecondsPerQuestion(Number(e.target.value))}
+                    min={1}
+                    max={300}
+                    value={totalMinutes}
+                    onChange={(e) => {
+                      setMinutesTouched(true);
+                      setTotalMinutes(Number(e.target.value));
+                    }}
                     className="w-16 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
                   />
-                  <span className="text-xs text-[#6E9B8D]">sec</span>
+                  <span className="text-xs text-[#6E9B8D]">min</span>
                 </div>
               )}
             </div>
+            {timerEnabled && (
+              <p className="text-[11px] text-[#5C8579] -mt-2">
+                {numQuestions} questions in {totalMinutes} min — auto-submits
+                when time runs out.
+              </p>
+            )}
 
             <div className="flex items-center justify-between">
               <label className="text-sm text-[#EDEDE3] flex items-center gap-2 cursor-pointer">

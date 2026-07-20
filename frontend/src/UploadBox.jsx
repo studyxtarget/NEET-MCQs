@@ -11,6 +11,14 @@ export default function UploadBox({ onQuizReady }) {
   const [numQuestions, setNumQuestions] = useState(15);
   const [difficulty, setDifficulty] = useState("medium");
   const [mode, setMode] = useState("extract_existing");
+
+  // Quick-win settings: timer + negative marking
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [secondsPerQuestion, setSecondsPerQuestion] = useState(60);
+  const [negativeMarking, setNegativeMarking] = useState(true);
+  const [correctMarks, setCorrectMarks] = useState(4);
+  const [negativeMarks, setNegativeMarks] = useState(1);
+
   const [status, setStatus] = useState("idle"); // idle | uploading | ready | generating | error
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -46,7 +54,16 @@ export default function UploadBox({ onQuizReady }) {
         difficulty,
         mode,
       });
-      onQuizReady(quiz);
+      onQuizReady({
+        ...quiz,
+        settings: {
+          timerEnabled,
+          secondsPerQuestion: timerEnabled ? secondsPerQuestion : null,
+          negativeMarking,
+          correctMarks: Number(correctMarks) || 0,
+          negativeMarks: negativeMarking ? Number(negativeMarks) || 0 : 0,
+        },
+      });
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.message);
@@ -171,6 +188,70 @@ export default function UploadBox({ onQuizReady }) {
                 />
                 Generate new MCQs
               </label>
+            </div>
+          </div>
+
+          {/* Exam settings: timer + negative marking */}
+          <div className="border-t border-border pt-4 space-y-4">
+            <div className="text-xs tracking-[2px] text-[#6E9B8D]">
+              EXAM SETTINGS
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-[#EDEDE3] flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={timerEnabled}
+                  onChange={(e) => setTimerEnabled(e.target.checked)}
+                />
+                Timer per question
+              </label>
+              {timerEnabled && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={10}
+                    max={600}
+                    value={secondsPerQuestion}
+                    onChange={(e) => setSecondsPerQuestion(Number(e.target.value))}
+                    className="w-16 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
+                  />
+                  <span className="text-xs text-[#6E9B8D]">sec</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-[#EDEDE3] flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={negativeMarking}
+                  onChange={(e) => setNegativeMarking(e.target.checked)}
+                />
+                Negative marking
+              </label>
+              {negativeMarking && (
+                <div className="flex items-center gap-2 text-xs text-[#6E9B8D]">
+                  <span>+</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={correctMarks}
+                    onChange={(e) => setCorrectMarks(e.target.value)}
+                    className="w-12 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
+                  />
+                  <span>/ −</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={negativeMarks}
+                    onChange={(e) => setNegativeMarks(e.target.value)}
+                    className="w-12 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

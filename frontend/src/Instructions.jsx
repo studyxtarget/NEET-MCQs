@@ -1,112 +1,210 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-export default function Instructions({ quizData, onStart }) {
-  const { questions, mode, subject, chapter, settings = {} } = quizData;
+const MODE_LABELS = {
+  extract_existing: "Previous Year Questions",
+  generate_new: "AI Generated Questions",
+};
+
+export default function Instructions({ quizData, user, onStart }) {
+  const { questions = [], mode, subject, chapter, settings = {} } = quizData;
   const {
     timerEnabled = false,
     totalSeconds = null,
     negativeMarking = false,
     correctMarks = 4,
     negativeMarks = 1,
+    passingAccuracy = "60%",
   } = settings;
 
   const [acknowledged, setAcknowledged] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState("");
+
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      setCurrentDateTime(
+        now.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }) +
+          ", " +
+          now.toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+      );
+    };
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const totalMinutes = totalSeconds ? Math.round(totalSeconds / 60) : null;
+  const totalMarks = questions.length * correctMarks;
+  const userName = user?.name || "Guest User";
+  
+  // Format mode string safely
+  const formattedMode = MODE_LABELS[mode] || mode || "AI Generated Questions";
 
   return (
-    <div className="max-w-lg mx-auto bg-panel border border-border rounded-xl p-8">
-      <div className="text-xs tracking-[3px] text-gold mb-2">STEP 2</div>
-      <h2 className="font-display text-2xl text-[#F0F2F0] mb-6">
-        Before you start
+    <div className="max-w-2xl mx-auto bg-panel border border-border rounded-xl p-6 md:p-8 text-[#F4EFE0]">
+      {/* 1. Candidate Information Header */}
+      <div className="bg-ink/60 border border-border rounded-lg p-4 mb-6">
+        <div className="text-xs tracking-[2px] text-[#6E9B8D] mb-3 font-mono font-semibold">
+          👤 CANDIDATE INFORMATION
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-gold">👤</span>
+            <span className="text-gray-400">Candidate:</span>
+            <span className="font-medium text-white">{userName}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gold">📚</span>
+            <span className="text-gray-400">Subject:</span>
+            <span className="font-medium text-white">{subject || "General"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gold">📖</span>
+            <span className="text-gray-400">Chapter:</span>
+            <span className="font-medium text-white">{chapter || "General"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gold">🕒</span>
+            <span className="text-gray-400">Date & Time:</span>
+            <span className="font-medium text-white">{currentDateTime}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-xs tracking-[3px] text-gold mb-1">STEP 2</div>
+      <h2 className="font-display text-2xl text-[#F4EFE0] mb-6">
+        Exam Instructions
       </h2>
 
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <InfoCard icon="📚" label="Subject" value={subject || "General"} />
-        <InfoCard icon="📖" label="Chapter" value={chapter || "Not specified"} />
-        <InfoCard icon="❓" label="Questions" value={questions.length} />
+      {/* 2. Exam Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <InfoCard icon="❓" label="Total Questions" value={questions.length} />
+        <InfoCard icon="🎯" label="Total Marks" value={totalMarks} />
         <InfoCard
           icon="⏱"
           label="Total Time"
           value={timerEnabled ? `${totalMinutes} min` : "No limit"}
         />
-        <InfoCard icon="➕" label="Correct" value={`+${correctMarks}`} />
         <InfoCard
           icon="➖"
-          label="Incorrect"
-          value={negativeMarking ? `−${negativeMarks}` : "No penalty"}
+          label="Negative Marking"
+          value={negativeMarking ? `-${negativeMarks} Mark` : "No penalty"}
         />
+        <InfoCard icon="⚙️" label="Mode" value={formattedMode} />
+        <InfoCard icon="📈" label="Passing Accuracy" value={passingAccuracy} />
       </div>
 
-      <div className="flex items-center gap-2 text-xs tracking-[2px] text-[#6B7873] mb-3">
-        <span>📌</span> IMPORTANT INSTRUCTIONS
+      {/* 3. Instructions */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-xs tracking-[2px] text-[#6E9B8D] mb-3 font-mono font-semibold">
+          📌 IMPORTANT INSTRUCTIONS
+        </div>
+        <ul className="space-y-2.5 text-sm text-[#D8D8CC]">
+          <li className="flex gap-2">
+            <span className="text-gold">·</span>
+            You can change your answer until the quiz is submitted.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-gold">·</span>
+            Use the question palette to jump between questions.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-gold">·</span>
+            Questions not attempted will be treated as skipped.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-gold">·</span>
+            The quiz auto-submits when time expires.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-gold">·</span>
+            After submission, answers become read-only.
+          </li>
+        </ul>
       </div>
-      <ul className="space-y-2 text-sm text-[#E4E7E4] mb-6">
-        <li className="flex gap-2">
-          <span className="text-gold">·</span>
-          Each question has exactly one correct option.
-        </li>
-        <li className="flex gap-2">
-          <span className="text-gold">·</span>
-          Tapping an option locks it in — you'll see the right answer and a
-          short explanation right after.
-        </li>
-        <li className="flex gap-2">
-          <span className="text-gold">·</span>
-          Use "Skip" if you don't want to attempt a question. Skipped
-          questions score zero — no penalty.
-        </li>
-        {negativeMarking && (
-          <li className="flex gap-2">
-            <span className="text-gold">·</span>
-            Wrong answers deduct {negativeMarks} mark
-            {negativeMarks === 1 ? "" : "s"} each.
-          </li>
-        )}
-        {timerEnabled && (
-          <li className="flex gap-2">
-            <span className="text-gold">·</span>
-            You have {totalMinutes} minute{totalMinutes === 1 ? "" : "s"} for
-            the whole quiz. It auto-submits when time runs out, so pace
-            yourself.
-          </li>
-        )}
-        <li className="flex gap-2">
-          <span className="text-gold">·</span>
-          Once you tap "Start Exam" below, the timer (if enabled) begins
-          immediately.
-        </li>
-      </ul>
 
-      <label className="flex items-start gap-3 text-sm text-[#E4E7E4] cursor-pointer mb-6 select-none">
+      {/* 4. Legend Section */}
+      <div className="mb-6 border-t border-b border-border py-4">
+        <div className="text-xs tracking-[2px] text-[#6E9B8D] mb-3 font-mono font-semibold">
+          🎨 QUESTION PALETTE LEGEND
+        </div>
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+            <span>Answered</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-amber-400 inline-block"></span>
+            <span>Visited</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-gray-500 inline-block"></span>
+            <span>Not Visited</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>
+            <span>Marked for Review</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+            <span>Wrong (after submit)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Checkbox */}
+      <label className="flex items-start gap-3 text-sm text-[#EDEDE3] cursor-pointer mb-4 select-none">
         <input
           type="checkbox"
           checked={acknowledged}
           onChange={(e) => setAcknowledged(e.target.checked)}
           className="mt-0.5"
         />
-        <span>I have read all instructions</span>
+        <span>I have read all instructions carefully and am ready to proceed.</span>
       </label>
 
-      <button
-        onClick={onStart}
-        disabled={!acknowledged}
-        className="w-full bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        🚀 Start Exam
-      </button>
+      {/* 5. Start Button with Warning */}
+      <div className="space-y-2 mb-6">
+        {timerEnabled && (
+          <blockquote className="text-xs text-amber-400/90 bg-amber-500/10 border-l-2 border-amber-400 p-2 rounded-r">
+            ⚠️ Once the exam starts, the timer cannot be paused.
+          </blockquote>
+        )}
+        <button
+          onClick={onStart}
+          disabled={!acknowledged}
+          className="w-full bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
+        >
+          🚀 Start Exam
+        </button>
+      </div>
+
+      {/* 6. Footer */}
+      <div className="text-center text-xs text-[#6E9B8D] italic border-t border-border/50 pt-4">
+        Good luck! Read every question carefully before submitting.
+      </div>
     </div>
   );
 }
 
 function InfoCard({ icon, label, value }) {
   return (
-    <div className="bg-ink/40 border border-border rounded-lg px-4 py-3">
-      <div className="font-mono text-[10px] tracking-wide text-[#6B7873] mb-1">
+    <div className="bg-ink/40 border border-border rounded-lg px-3 py-2.5">
+      <div className="font-mono text-[10px] tracking-wide text-[#6E9B8D] mb-0.5">
         {icon} {label.toUpperCase()}
       </div>
-      <div className="text-[#F0F2F0] text-sm font-medium truncate">
+      <div className="text-[#F4EFE0] text-sm font-medium truncate">
         {value}
       </div>
     </div>
   );
-}
+        }
+      

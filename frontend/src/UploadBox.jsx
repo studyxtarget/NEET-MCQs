@@ -5,23 +5,26 @@ const SUBJECTS = ["Biology", "Physics", "Chemistry"];
 
 export default function UploadBox({ onQuizReady }) {
   const [file, setFile] = useState(null);
-  const [docInfo, setDocInfo] = useState(null);
+  const [docInfo, setDocInfo] = useState(null); // result of /upload
   const [subject, setSubject] = useState("Biology");
   const [chapter, setChapter] = useState("");
   const [numQuestions, setNumQuestions] = useState(15);
   const [difficulty, setDifficulty] = useState("medium");
   const [mode, setMode] = useState("extract_existing");
 
+  // Quick-win settings: timer + negative marking
   const [timerEnabled, setTimerEnabled] = useState(false);
-  const [totalMinutes, setTotalMinutes] = useState(numQuestions);
+  const [totalMinutes, setTotalMinutes] = useState(numQuestions); // default: 1 min/question
   const [minutesTouched, setMinutesTouched] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(true);
   const [correctMarks, setCorrectMarks] = useState(4);
   const [negativeMarks, setNegativeMarks] = useState(1);
 
-  const [status, setStatus] = useState("idle");
+  const [status, setStatus] = useState("idle"); // idle | uploading | ready | generating | error
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Keep the suggested exam duration in sync with question count (1 min/question)
+  // until the person overrides it themselves.
   useEffect(() => {
     if (!minutesTouched) setTotalMinutes(numQuestions);
   }, [numQuestions, minutesTouched]);
@@ -77,21 +80,25 @@ export default function UploadBox({ onQuizReady }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-5 py-8">
-      <div className="font-mono text-[10px] tracking-[3px] text-gold mb-2">
-        STEP 1
+    <div className="max-w-3xl mx-auto bg-panel border border-border rounded-2xl p-8 md:p-10 shadow-2xl space-y-6">
+      
+      {/* 🧠 Hero Header */}
+      <div>
+        <div className="text-xs tracking-[3px] text-gold mb-2 font-mono font-semibold uppercase">
+          STEP 1
+        </div>
+        <h2 className="font-display text-2xl md:text-3xl text-[#F4EFE0]">
+          Upload your PDF
+        </h2>
+        <p className="mt-2 text-sm text-[#9FC9BE] max-w-xl">
+          Upload your NCERT notes, coaching module or PYQ PDF to generate an AI-powered quiz with detailed performance analysis.
+        </p>
       </div>
-      <h2 className="font-display text-[28px] text-[#F0F2F0] mb-7">
-        Upload your PDF
-      </h2>
 
+      {/* 📄 Upload Area */}
       <label
         htmlFor="pdf-upload"
-        className={`block rounded-2xl py-9 px-6 text-center cursor-pointer transition-colors mb-6 ${
-          file
-            ? "bg-card border border-gold/40"
-            : "border border-dashed border-[#333B38] hover:border-gold/60"
-        }`}
+        className="block border-2 border-dashed border-gold/30 rounded-2xl py-14 text-center cursor-pointer hover:border-gold hover:bg-gold/5 hover:-translate-y-1 transition-all duration-300"
       >
         <input
           id="pdf-upload"
@@ -100,106 +107,160 @@ export default function UploadBox({ onQuizReady }) {
           onChange={handleFileChange}
           className="hidden"
         />
-        <div className="text-[#8A9490] text-sm">
-          {file ? file.name : "Choose a PDF — NCERT chapter, notes, or PYQ bank"}
+        <div className="text-5xl mb-4">📄</div>
+        <div className="font-semibold text-lg text-[#F4EFE0] truncate px-4">
+          {file ? file.name : "Choose your PDF"}
         </div>
+        <p className="text-sm text-[#6E9B8D] mt-2">
+          NCERT • Notes • PYQs
+        </p>
+        <p className="text-[11px] text-[#5C8579] mt-2 font-mono">
+          Supported: PDF • Max Size: 25 MB
+        </p>
       </label>
 
       {status === "uploading" && (
-        <p className="text-sm text-[#8A9490] mb-4">Extracting text…</p>
+        <p className="text-sm text-[#9FC9BE] animate-pulse">Extracting text…</p>
       )}
+
       {status === "error" && (
-        <p className="text-sm text-rose mb-4">{errorMsg}</p>
-      )}
-      {docInfo && (
-        <p className="text-xs text-[#6B7873] mb-7">
-          {docInfo.char_count.toLocaleString()} characters across{" "}
-          {docInfo.pages} page{docInfo.pages !== 1 ? "s" : ""}
+        <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3">
+          {errorMsg}
         </p>
+      )}
+
+      {/* Success Info Box */}
+      {docInfo && (
+        <div className="text-xs text-[#9FC9BE] bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-1">
+          <div className="font-semibold text-emerald-400 text-sm flex items-center gap-1.5 mb-1">
+            <span>✅</span> PDF uploaded successfully
+          </div>
+          <div>
+            Extracted <span className="font-mono text-white">{docInfo.char_count.toLocaleString()}</span> characters across{" "}
+            <span className="font-mono text-white">{docInfo.pages}</span> page{docInfo.pages !== 1 ? "s" : ""}.
+          </div>
+        </div>
       )}
 
       {docInfo && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Subject">
-              <select
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full bg-transparent border-b border-[#333B38] focus:border-gold outline-none py-2 text-sm text-[#E4E7E4]"
-              >
-                {SUBJECTS.map((s) => (
-                  <option key={s} value={s} className="bg-panel">
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Chapter (optional)">
-              <input
-                type="text"
-                value={chapter}
-                onChange={(e) => setChapter(e.target.value)}
-                placeholder="e.g. Human Physiology"
-                className="w-full bg-transparent border-b border-[#333B38] focus:border-gold outline-none py-2 text-sm text-[#E4E7E4] placeholder:text-[#5A625E]"
-              />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Questions">
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={numQuestions}
-                onChange={(e) => setNumQuestions(Number(e.target.value))}
-                className="w-full bg-transparent border-b border-[#333B38] focus:border-gold outline-none py-2 text-sm text-[#E4E7E4]"
-              />
-            </Field>
-            <Field label="Difficulty">
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full bg-transparent border-b border-[#333B38] focus:border-gold outline-none py-2 text-sm text-[#E4E7E4]"
-              >
-                <option value="easy" className="bg-panel">Easy</option>
-                <option value="medium" className="bg-panel">Medium</option>
-                <option value="hard" className="bg-panel">Hard</option>
-                <option value="mixed" className="bg-panel">Mixed</option>
-              </select>
-            </Field>
-          </div>
-
-          <div>
-            <div className="text-[11px] tracking-[1.5px] text-[#6B7873] mb-2.5">
-              MODE
+          
+          {/* 📘 Section 1: Subject & Chapter */}
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
+            <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
+              📘 Subject & Chapter
             </div>
-            <div className="flex gap-2">
-              <ModeButton
-                active={mode === "extract_existing"}
-                onClick={() => setMode("extract_existing")}
-                label="Existing PYQs"
-              />
-              <ModeButton
-                active={mode === "generate_new"}
-                onClick={() => setMode("generate_new")}
-                label="Generate new"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-[#9FC9BE] block mb-1.5 font-medium">Subject</label>
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none"
+                >
+                  {SUBJECTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-[#9FC9BE] block mb-1.5 font-medium">
+                  Chapter (optional)
+                </label>
+                <input
+                  type="text"
+                  value={chapter}
+                  onChange={(e) => setChapter(e.target.value)}
+                  placeholder="e.g. Body Fluids and Circulation"
+                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none placeholder:text-gray-600"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="pt-1 space-y-4">
-            <div className="text-[11px] tracking-[1.5px] text-[#6B7873]">
-              EXAM SETTINGS
+          {/* ⚙️ Section 2: Quiz Settings */}
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
+            <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
+              ⚙️ Quiz Settings
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-[#9FC9BE] block mb-1.5 font-medium">
+                  Questions
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={numQuestions}
+                  onChange={(e) => setNumQuestions(Number(e.target.value))}
+                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#9FC9BE] block mb-1.5 font-medium">
+                  Difficulty
+                </label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none"
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </div>
             </div>
 
-            <ToggleRow
-              label="Timer for whole quiz"
-              checked={timerEnabled}
-              onChange={setTimerEnabled}
-            >
+            <div>
+              <label className="text-xs text-[#9FC9BE] block mb-2 font-medium">Mode</label>
+              <div className="flex flex-wrap gap-4 text-sm text-[#EDEDE3]">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    checked={mode === "extract_existing"}
+                    onChange={() => setMode("extract_existing")}
+                    className="accent-gold"
+                  />
+                  Existing PYQs in PDF
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    checked={mode === "generate_new"}
+                    onChange={() => setMode("generate_new")}
+                    className="accent-gold"
+                  />
+                  Generate new MCQs
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* 📝 Section 3: Exam Settings */}
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
+            <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
+              📝 Exam Settings
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-[#EDEDE3] flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={timerEnabled}
+                  onChange={(e) => setTimerEnabled(e.target.checked)}
+                  className="accent-gold rounded"
+                />
+                Timer for whole quiz
+              </label>
               {timerEnabled && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <input
                     type="number"
                     min={1}
@@ -209,26 +270,30 @@ export default function UploadBox({ onQuizReady }) {
                       setMinutesTouched(true);
                       setTotalMinutes(Number(e.target.value));
                     }}
-                    className="w-14 bg-card border border-[#333B38] rounded px-2 py-1 text-sm text-[#E4E7E4]"
+                    className="w-20 bg-ink border border-border rounded-xl px-3 py-1.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none text-center font-mono"
                   />
-                  <span className="text-xs text-[#6B7873]">min</span>
+                  <span className="text-xs text-[#6E9B8D] font-mono">min</span>
                 </div>
               )}
-            </ToggleRow>
+            </div>
             {timerEnabled && (
-              <p className="text-[11px] text-[#6B7873] -mt-2">
-                {numQuestions} questions in {totalMinutes} min — auto-submits
-                when time runs out.
+              <p className="text-[11px] text-[#5C8579] -mt-2">
+                {numQuestions} questions in {totalMinutes} min — auto-submits when time runs out.
               </p>
             )}
 
-            <ToggleRow
-              label="Negative marking"
-              checked={negativeMarking}
-              onChange={setNegativeMarking}
-            >
+            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <label className="text-sm text-[#EDEDE3] flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={negativeMarking}
+                  onChange={(e) => setNegativeMarking(e.target.checked)}
+                  className="accent-gold rounded"
+                />
+                Negative marking
+              </label>
               {negativeMarking && (
-                <div className="flex items-center gap-1.5 text-xs text-[#6B7873]">
+                <div className="flex items-center gap-2 text-xs text-[#6E9B8D] font-mono">
                   <span>+</span>
                   <input
                     type="number"
@@ -236,7 +301,7 @@ export default function UploadBox({ onQuizReady }) {
                     max={10}
                     value={correctMarks}
                     onChange={(e) => setCorrectMarks(e.target.value)}
-                    className="w-10 bg-card border border-[#333B38] rounded px-1.5 py-1 text-sm text-[#E4E7E4]"
+                    className="w-14 bg-ink border border-border rounded-xl px-2 py-1.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none text-center"
                   />
                   <span>/ −</span>
                   <input
@@ -245,64 +310,62 @@ export default function UploadBox({ onQuizReady }) {
                     max={10}
                     value={negativeMarks}
                     onChange={(e) => setNegativeMarks(e.target.value)}
-                    className="w-10 bg-card border border-[#333B38] rounded px-1.5 py-1 text-sm text-[#E4E7E4]"
+                    className="w-14 bg-ink border border-border rounded-xl px-2 py-1.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none text-center"
                   />
                 </div>
               )}
-            </ToggleRow>
+            </div>
           </div>
 
+          {/* Quiz Summary Card */}
+          <div className="bg-ink/40 border border-border rounded-xl p-4 space-y-2 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
+            <div className="text-xs font-mono tracking-[2px] text-[#6E9B8D] uppercase">
+              Quiz Summary
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Questions</span>
+              <span className="font-mono text-[#F4EFE0]">{numQuestions}</span>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Difficulty</span>
+              <span className="capitalize text-[#F4EFE0]">{difficulty}</span>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Mode</span>
+              <span className="text-[#F4EFE0]">
+                {mode === "extract_existing"
+                  ? "Previous Year Questions"
+                  : "AI Generated"}
+              </span>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Timer</span>
+              <span className="text-[#F4EFE0]">
+                {timerEnabled ? `${totalMinutes} min` : "Disabled"}
+              </span>
+            </div>
+          </div>
+
+          {/* 🚀 Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={status === "generating"}
-            className="w-full bg-gold text-ink font-medium text-sm rounded-xl py-3.5 mt-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={!docInfo || status === "generating"}
+            className="w-full bg-gold text-ink font-mono text-base font-bold tracking-wide rounded-xl py-4 shadow-xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(212,175,55,0.35)] active:scale-95 transition-all disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 disabled:hover:shadow-none flex items-center justify-center gap-2"
           >
-            {status === "generating" ? "Generating…" : "Generate Quiz"}
+            {status === "generating" ? (
+              <span className="inline-flex items-center gap-2 animate-pulse">
+                <span>⏳</span> Generating Quiz...
+              </span>
+            ) : (
+              <span>🚀 Generate Quiz</span>
+            )}
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <div className="text-[11px] tracking-[1.5px] text-[#6B7873] mb-1.5">
-        {label.toUpperCase()}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ModeButton({ active, onClick, label }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 text-sm rounded-lg py-2.5 border transition-colors ${
-        active
-          ? "bg-gold/12 border-gold text-gold"
-          : "border-[#333B38] text-[#8A9490]"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function ToggleRow({ label, checked, onChange, children }) {
-  return (
-    <div className="flex items-center justify-between">
-      <label className="text-sm text-[#E4E7E4] flex items-center gap-2.5 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        {label}
-      </label>
-      {children}
     </div>
   );
 }

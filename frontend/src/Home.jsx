@@ -1,15 +1,20 @@
 import React, { useState } from "react";
 import UploadBox from "./UploadBox";
+import Instructions from "./Instructions";
 import Quiz from "./Quiz";
 import Result from "./Result";
 
 export default function Home() {
-  const [stage, setStage] = useState("upload"); // upload | quiz | result
+  const [stage, setStage] = useState("upload"); // upload | instructions | quiz | result
   const [quizData, setQuizData] = useState(null);
   const [result, setResult] = useState(null);
 
   const handleQuizReady = (quiz) => {
     setQuizData(quiz);
+    setStage("instructions");
+  };
+
+  const handleStart = () => {
     setStage("quiz");
   };
 
@@ -27,6 +32,9 @@ export default function Home() {
   return (
     <div className="min-h-screen py-16 px-4">
       {stage === "upload" && <UploadBox onQuizReady={handleQuizReady} />}
+      {stage === "instructions" && quizData && (
+        <Instructions quizData={quizData} onStart={handleStart} />
+      )}
       {stage === "quiz" && quizData && (
         <Quiz quizData={quizData} onFinished={handleFinished} />
       )}

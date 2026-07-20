@@ -12,25 +12,25 @@ export default function Quiz({ quizData, onFinished }) {
   } = settings;
 
   const [current, setCurrent] = useState(0);
-  const [picked, setPicked] = useState({}); // question_index -> selected_index
-  const [timings, setTimings] = useState({}); // question_index -> seconds spent
+  const [picked, setPicked] = useState({}); 
+  const [timings, setTimings] = useState({}); 
+  const [visited, setVisited] = useState({ 0: true }); // Track visited questions
+  const [marked, setMarked] = useState({}); // Track "Mark for Review"
   const [elapsedTotal, setElapsedTotal] = useState(0);
   const [totalSecondsLeft, setTotalSecondsLeft] = useState(totalSeconds);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
-  
-  // NEW: Submission state to lock answers
   const [submitted, setSubmitted] = useState(false);
+  const [finalResult, setFinalResult] = useState(null);
 
   const questionStartRef = useRef(Date.now());
   const finishQuizRef = useRef(() => {});
 
   const q = questions[current];
   const isLast = current === questions.length - 1;
-  
-  // Ab hasAnswered sirf UI display ke liye hai, lock karne ke liye nahi
-  const hasAnswered = picked[current] !== undefined;
 
+  // Mark as visited and reset per-question timer on navigation
   useEffect(() => {
+    setVisited((prev) => ({ ...prev, [current]: true }));
     questionStartRef.current = Date.now();
   }, [current]);
 
@@ -51,29 +51,42 @@ export default function Quiz({ quizData, onFinished }) {
     return () => clearTimeout(id);
   }, [totalSecondsLeft, timerEnabled, autoSubmitted]);
 
-  const recordAnswer = (value) => {
-    const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
-    setTimings((prev) => ({ ...prev, [current]: spent }));
-    setPicked((prev) => ({ ...prev, [current]: value }));
-  };
-
-  // UPDATED: Allow changing answer until submitted
+  // FIX 3 & 4: Preserve first attempt timing, allow changing answer after skip
   const handlePick = (idx) => {
-    if (submitted) return; // Lock after submission
-    recordAnswer(idx);
+    if (submitted) return;
+    const isAlreadyAnswered = picked[current] !== undefined;
+    
+    if (!isAlreadyAnswered) {
+      const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
+      setTimings((prev) => ({ ...prev, [current]: spent }));
+    }
+    setPicked((prev) => ({ ...prev, [current]: idx }));
   };
 
   const handleSkip = () => {
-    if (submitted) return; // Lock after submission
-    recordAnswer("skipped");
+    if (submitted) return;
+    const isAlreadyAnswered = picked[current] !== undefined;
+    
+    if (!isAlreadyAnswered) {
+      const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
+      setTimings((prev) => ({ ...prev, [current]: spent }));
+    }
+    setPicked((prev) => ({ ...prev, [current]: "skipped" }));
   };
 
-  const finishQuiz = async () => {
+  const handleMarkReview = () => {
+    if (submitted) return;
+    setMarked((prev) => ({ ...prev, [current]: !prev[current] }));
+  };
+
+  const handleFinishQuiz = async () => {
     const result = computeResult(questions, picked, timings, {
       negativeMarking,
       correctMarks,
       negativeMarks,
     });
+    setFinalResult(result);
+    setSubmitted(true); // Lock answers, enter Review Mode
 
     submitQuiz({
       docId,
@@ -83,23 +96,23 @@ export default function Quiz({ quizData, onFinished }) {
           question_index: Number(qIdx),
           selected_index: selIdx,
         })),
-    }).catch(() => {});
+    }).catch(() => {});  };
 
-    onFinished(result);
-  };
-
-  // UPDATED: Wrapper to set submitted state before finishing
-  const handleFinishQuiz = () => {
-    setSubmitted(true);
-    finishQuiz();
+  const handleViewResults = () => {
+    if (finalResult) {
+      onFinished(finalResult);
+    }
   };
 
   finishQuizRef.current = handleFinishQuiz;
 
-  const handleNext = () => {    if (!isLast) {
+  const handleNext = () => {
+    if (!isLast && !submitted) {
       setCurrent((c) => c + 1);
+    } else if (!submitted) {
+      handleFinishQuiz(); // Last question -> Submit
     } else {
-      handleFinishQuiz();
+      handleViewResults(); // Review mode, last question -> Go to results
     }
   };
 
@@ -132,32 +145,36 @@ export default function Quiz({ quizData, onFinished }) {
         </span>
       </div>
 
-      {/* NEW: Question Palette */}
-      <div className="mb-6 grid grid-cols-8 sm:grid-cols-10 gap-2">
+      {/* FIX 1 & 5: Premium Question Palette (Always Clickable) */}      <div className="mb-6 grid grid-cols-8 sm:grid-cols-10 gap-2">
         {questions.map((_, idx) => {
-          let paletteClass = "bg-ink border-border text-[#5C7269]"; // Default unvisited
+          let paletteClass = "bg-ink border-border text-[#5C7269]"; // ⚪ Not Visited
           
           if (submitted) {
             if (picked[idx] === undefined) {
-              paletteClass = "bg-ink border-border text-[#5C7269]"; // Gray (unanswered)
+              paletteClass = "bg-ink border-border text-[#5C7269]"; // ⚪ Unanswered
             } else if (picked[idx] === questions[idx].correct_index) {
-              paletteClass = "bg-mint/20 border-mint text-mint"; // Green (correct)
+              paletteClass = "bg-mint/20 border-mint text-mint"; // 🟢 Correct
             } else {
-              paletteClass = "bg-rose/20 border-rose text-rose"; // Red (wrong)
+              paletteClass = "bg-rose/20 border-rose text-rose"; // 🔴 Wrong
             }
-          } else {            if (picked[idx] !== undefined) {
-              paletteClass = "bg-gold/20 border-gold text-gold"; // Gold (answered)
+          } else {
+            if (marked[idx]) {
+              paletteClass = "bg-purple-500/20 border-purple-500 text-purple-400"; // 🟣 Review
+            } else if (picked[idx] !== undefined && picked[idx] !== "skipped") {
+              paletteClass = "bg-mint/20 border-mint text-mint"; // 🟢 Answered
+            } else if (visited[idx]) {
+              paletteClass = "bg-gold/20 border-gold text-gold"; // 🟡 Visited
             }
+            
             if (idx === current) {
-              paletteClass += " ring-1 ring-gold"; // Highlight current
+              paletteClass += " ring-2 ring-gold"; // Current question highlight
             }
           }
 
           return (
             <button
               key={idx}
-              onClick={() => !submitted && setCurrent(idx)}
-              disabled={submitted}
+              onClick={() => setCurrent(idx)} // FIX 1: Always allow navigation
               className={`h-8 w-8 rounded-md border text-xs font-mono flex items-center justify-center transition-colors ${paletteClass}`}
             >
               {idx + 1}
@@ -177,8 +194,7 @@ export default function Quiz({ quizData, onFinished }) {
           {marksLabel && (
             <span className="font-mono text-xs text-gold ml-auto">
               {marksLabel}
-            </span>
-          )}
+            </span>          )}
         </div>
         
         <p className="text-[#EDEDE3] text-base leading-relaxed whitespace-pre-line mb-5">
@@ -191,19 +207,19 @@ export default function Quiz({ quizData, onFinished }) {
             const isCorrect = idx === q.correct_index;
             const isPicked = idx === picked[current];
             
-            // UPDATED: Option coloring logic based on submission state
             let classes = "border-[#254B42] bg-ink text-[#D8D8CC] hover:border-gold";
             
-            if (submitted) {              if (isCorrect) {
-                classes = "border-mint bg-mint/10 text-[#B9E8CE]"; // Green for correct
+            if (submitted) {
+              if (isCorrect) {
+                classes = "border-mint bg-mint/10 text-[#B9E8CE]";
               } else if (isPicked) {
-                classes = "border-rose bg-rose/10 text-[#F0B5AE]"; // Red for wrong pick
+                classes = "border-rose bg-rose/10 text-[#F0B5AE]";
               } else {
-                classes = "border-[#1E3A33] text-[#5C7269]"; // Dim others
+                classes = "border-[#1E3A33] text-[#5C7269]";
               }
             } else {
               if (isPicked) {
-                classes = "border-gold bg-gold/10 text-gold"; // Gold for selected before submit
+                classes = "border-gold bg-gold/10 text-gold";
               }
             }
 
@@ -224,11 +240,10 @@ export default function Quiz({ quizData, onFinished }) {
           })}
         </div>
 
-        {/* Explanation Box */}
+        {/* Explanation Box (Visible after submit) */}
         {submitted && (
           <div className="mt-4 text-xs text-[#9FC9BE] bg-ink/40 rounded p-3 border border-border">
-            {picked[current] === "skipped" || picked[current] === undefined ? (
-              <>
+            {picked[current] === "skipped" || picked[current] === undefined ? (              <>
                 Not answered — correct answer was{" "}
                 <span className="text-mint font-semibold">
                   {String.fromCharCode(97 + q.correct_index)}
@@ -243,26 +258,41 @@ export default function Quiz({ quizData, onFinished }) {
                 </span>
                 .{" "}
               </>
-            ) : null}            {q.explanation}
+            ) : null}
+            {q.explanation}
           </div>
         )}
 
         {/* Action Buttons */}
         <div className="flex gap-3 mt-6">
           {!submitted && (
-            <button
-              onClick={handleSkip}
-              className="flex-1 border border-border text-[#9FC9BE] font-mono text-sm tracking-wide rounded py-3 hover:border-gold transition-colors"
-            >
-              Skip
-            </button>
+            <>
+              <button
+                onClick={handleMarkReview}
+                className={`flex-1 border font-mono text-sm tracking-wide rounded py-3 transition-colors ${
+                  marked[current]
+                    ? "border-purple-500 bg-purple-500/10 text-purple-400"
+                    : "border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                }`}
+              >
+                {marked[current] ? "Unmark Review" : "Mark Review"}
+              </button>
+              <button
+                onClick={handleSkip}
+                className="flex-1 border border-border text-[#9FC9BE] font-mono text-sm tracking-wide rounded py-3 hover:border-gold transition-colors"
+              >
+                Skip
+              </button>
+            </>
           )}
+          
+          {/* FIX 2: Next button adapts to Review Mode */}
           <button
             onClick={handleNext}
-            // Removed disabled={!hasAnswered} so user can navigate freely before submit
             className="flex-1 bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity"
           >
-            {isLast ? "Finish Quiz" : "Next"}
+            {!submitted 
+              ? (isLast ? "Finish Quiz" : "Next")               : (isLast ? "View Results" : "Next")}
           </button>
         </div>
       </div>
@@ -292,7 +322,8 @@ function computeResult(questions, picked, timings, marksConfig) {
     topicStats[topic] = topicStats[topic] || {
       correct: 0,
       wrong: 0,
-      skipped: 0,      score: 0,
+      skipped: 0,
+      score: 0,
     };
 
     const answer = picked[idx];
@@ -310,8 +341,7 @@ function computeResult(questions, picked, timings, marksConfig) {
       correctTimeSum += timeSpent;
       totalMarks += correctMarks;
       topicStats[topic].correct += 1;
-      topicStats[topic].score += correctMarks;
-    } else {
+      topicStats[topic].score += correctMarks;    } else {
       wrongCount += 1;
       wrongTimeSum += timeSpent;
       const penalty = negativeMarking ? negativeMarks : 0;
@@ -341,4 +371,5 @@ function computeResult(questions, picked, timings, marksConfig) {
       avgSkippedSec: skippedCount ? Math.round(skippedTimeSum / skippedCount) : 0,
       totalTimeSec,
     },
-  };}
+  };
+                  }

@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 
+const MODE_LABELS = {
+  extract_existing: "Previous Year Questions",
+  generate_new: "AI Generated Questions",
+};
+
 export default function Instructions({ quizData, user, onStart }) {
   const { questions = [], mode, subject, chapter, settings = {} } = quizData;
   const {
@@ -39,6 +44,9 @@ export default function Instructions({ quizData, user, onStart }) {
   const totalMinutes = totalSeconds ? Math.round(totalSeconds / 60) : null;
   const totalMarks = questions.length * correctMarks;
   const userName = user?.name || "Guest User";
+  
+  // Format mode string safely
+  const formattedMode = MODE_LABELS[mode] || mode || "AI Generated Questions";
 
   return (
     <div className="max-w-2xl mx-auto bg-panel border border-border rounded-xl p-6 md:p-8 text-[#F4EFE0]">
@@ -90,11 +98,11 @@ export default function Instructions({ quizData, user, onStart }) {
           label="Negative Marking"
           value={negativeMarking ? `-${negativeMarks} Mark` : "No penalty"}
         />
-        <InfoCard icon="⚙️" label="Mode" value={mode || "AI MCQs"} />
+        <InfoCard icon="⚙️" label="Mode" value={formattedMode} />
         <InfoCard icon="📈" label="Passing Accuracy" value={passingAccuracy} />
       </div>
 
-      {/* 3. Updated Instructions */}
+      {/* 3. Instructions */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-xs tracking-[2px] text-[#6E9B8D] mb-3 font-mono font-semibold">
           📌 IMPORTANT INSTRUCTIONS
@@ -198,5 +206,5 @@ function InfoCard({ icon, label, value }) {
       </div>
     </div>
   );
-              }
-        
+        }
+      

@@ -29,8 +29,11 @@ export default function Home() {
     setStage("upload");
   };
 
+  const wrapperClass =
+    stage === "quiz" || stage === "upload" ? "" : "min-h-screen py-16 px-4";
+
   return (
-    <div className={stage === "quiz" ? "" : "min-h-screen py-16 px-4"}>
+    <div className={wrapperClass}>
       {stage === "upload" && <UploadBox onQuizReady={handleQuizReady} />}
       {stage === "instructions" && quizData && (
         <Instructions quizData={quizData} onStart={handleStart} />

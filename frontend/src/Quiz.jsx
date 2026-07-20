@@ -5,41 +5,40 @@ export default function Quiz({ quizData, onFinished }) {
   const { doc_id: docId, questions, settings = {} } = quizData;
   const {
     timerEnabled = false,
-    totalSeconds = null, // whole-quiz budget, e.g. 15 questions -> 900s
+    totalSeconds = null,
     negativeMarking = false,
     correctMarks = 4,
     negativeMarks = 1,
   } = settings;
 
   const [current, setCurrent] = useState(0);
-  const [picked, setPicked] = useState({}); // question_index -> selected_index | "skipped"
+  const [picked, setPicked] = useState({}); // question_index -> selected_index
   const [timings, setTimings] = useState({}); // question_index -> seconds spent
   const [elapsedTotal, setElapsedTotal] = useState(0);
   const [totalSecondsLeft, setTotalSecondsLeft] = useState(totalSeconds);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
+  
+  // NEW: Submission state to lock answers
+  const [submitted, setSubmitted] = useState(false);
+
   const questionStartRef = useRef(Date.now());
   const finishQuizRef = useRef(() => {});
 
   const q = questions[current];
   const isLast = current === questions.length - 1;
+  
+  // Ab hasAnswered sirf UI display ke liye hai, lock karne ke liye nahi
   const hasAnswered = picked[current] !== undefined;
 
-  // Reset the per-question clock whenever the question changes (used for
-  // the per-question time stats shown in the result screen).
   useEffect(() => {
     questionStartRef.current = Date.now();
   }, [current]);
 
-  // Overall elapsed timer (always runs, used for the "Total Time Taken" stat
-  // when no exam timer is configured).
   useEffect(() => {
     const id = setInterval(() => setElapsedTotal((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Whole-quiz countdown -- e.g. 15 questions in 15 minutes. Auto-submits
-  // whatever is answered so far (unanswered questions count as skipped)
-  // the moment it hits zero.
   useEffect(() => {
     if (!timerEnabled || totalSecondsLeft === null) return;
     if (totalSecondsLeft <= 0) {
@@ -48,8 +47,7 @@ export default function Quiz({ quizData, onFinished }) {
         finishQuizRef.current();
       }
       return;
-    }
-    const id = setTimeout(() => setTotalSecondsLeft((s) => s - 1), 1000);
+    }    const id = setTimeout(() => setTotalSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
   }, [totalSecondsLeft, timerEnabled, autoSubmitted]);
 
@@ -59,13 +57,14 @@ export default function Quiz({ quizData, onFinished }) {
     setPicked((prev) => ({ ...prev, [current]: value }));
   };
 
+  // UPDATED: Allow changing answer until submitted
   const handlePick = (idx) => {
-    if (hasAnswered) return;
+    if (submitted) return; // Lock after submission
     recordAnswer(idx);
   };
 
   const handleSkip = () => {
-    if (hasAnswered) return;
+    if (submitted) return; // Lock after submission
     recordAnswer("skipped");
   };
 
@@ -75,8 +74,7 @@ export default function Quiz({ quizData, onFinished }) {
       correctMarks,
       negativeMarks,
     });
-    // Fire-and-forget: also tell the backend, for future login/history
-    // features. The result the user sees never depends on this succeeding.
+
     submitQuiz({
       docId,
       answers: Object.entries(picked)
@@ -86,16 +84,23 @@ export default function Quiz({ quizData, onFinished }) {
           selected_index: selIdx,
         })),
     }).catch(() => {});
+
     onFinished(result);
   };
-  finishQuizRef.current = finishQuiz;
 
-  const handleNext = () => {
-    if (!isLast) {
-      setCurrent((c) => c + 1);
-      return;
-    }
+  // UPDATED: Wrapper to set submitted state before finishing
+  const handleFinishQuiz = () => {
+    setSubmitted(true);
     finishQuiz();
+  };
+
+  finishQuizRef.current = handleFinishQuiz;
+
+  const handleNext = () => {    if (!isLast) {
+      setCurrent((c) => c + 1);
+    } else {
+      handleFinishQuiz();
+    }
   };
 
   const marksLabel =
@@ -104,7 +109,8 @@ export default function Quiz({ quizData, onFinished }) {
       : null;
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-2xl mx-auto p-4">
+      {/* Header: Progress & Timer */}
       <div className="flex justify-between items-center mb-4 gap-4">
         <span className="font-mono text-xs text-[#9FC9BE] whitespace-nowrap">
           Q{current + 1}/{questions.length}
@@ -126,6 +132,41 @@ export default function Quiz({ quizData, onFinished }) {
         </span>
       </div>
 
+      {/* NEW: Question Palette */}
+      <div className="mb-6 grid grid-cols-8 sm:grid-cols-10 gap-2">
+        {questions.map((_, idx) => {
+          let paletteClass = "bg-ink border-border text-[#5C7269]"; // Default unvisited
+          
+          if (submitted) {
+            if (picked[idx] === undefined) {
+              paletteClass = "bg-ink border-border text-[#5C7269]"; // Gray (unanswered)
+            } else if (picked[idx] === questions[idx].correct_index) {
+              paletteClass = "bg-mint/20 border-mint text-mint"; // Green (correct)
+            } else {
+              paletteClass = "bg-rose/20 border-rose text-rose"; // Red (wrong)
+            }
+          } else {            if (picked[idx] !== undefined) {
+              paletteClass = "bg-gold/20 border-gold text-gold"; // Gold (answered)
+            }
+            if (idx === current) {
+              paletteClass += " ring-1 ring-gold"; // Highlight current
+            }
+          }
+
+          return (
+            <button
+              key={idx}
+              onClick={() => !submitted && setCurrent(idx)}
+              disabled={submitted}
+              className={`h-8 w-8 rounded-md border text-xs font-mono flex items-center justify-center transition-colors ${paletteClass}`}
+            >
+              {idx + 1}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Question Card */}
       <div className="bg-panel border border-border rounded-xl p-6">
         <div className="flex justify-between items-center mb-2">
           {q.source_year && (
@@ -139,21 +180,33 @@ export default function Quiz({ quizData, onFinished }) {
             </span>
           )}
         </div>
+        
         <p className="text-[#EDEDE3] text-base leading-relaxed whitespace-pre-line mb-5">
           {q.question}
         </p>
 
+        {/* Options */}
         <div className="space-y-2">
           {q.options.map((opt, idx) => {
             const isCorrect = idx === q.correct_index;
             const isPicked = idx === picked[current];
-            let classes =
-              "border-[#254B42] bg-ink text-[#D8D8CC] hover:border-gold";
-            if (hasAnswered) {
-              if (isCorrect) classes = "border-mint bg-mint/10 text-[#B9E8CE]";
-              else if (isPicked) classes = "border-rose bg-rose/10 text-[#F0B5AE]";
-              else classes = "border-[#1E3A33] text-[#5C7269]";
+            
+            // UPDATED: Option coloring logic based on submission state
+            let classes = "border-[#254B42] bg-ink text-[#D8D8CC] hover:border-gold";
+            
+            if (submitted) {              if (isCorrect) {
+                classes = "border-mint bg-mint/10 text-[#B9E8CE]"; // Green for correct
+              } else if (isPicked) {
+                classes = "border-rose bg-rose/10 text-[#F0B5AE]"; // Red for wrong pick
+              } else {
+                classes = "border-[#1E3A33] text-[#5C7269]"; // Dim others
+              }
+            } else {
+              if (isPicked) {
+                classes = "border-gold bg-gold/10 text-gold"; // Gold for selected before submit
+              }
             }
+
             return (
               <div
                 key={idx}
@@ -164,30 +217,39 @@ export default function Quiz({ quizData, onFinished }) {
                   {String.fromCharCode(97 + idx)}
                 </span>
                 <span className="flex-1">{opt}</span>
-                {hasAnswered && isCorrect && <span>✓</span>}
-                {hasAnswered && isPicked && !isCorrect && <span>✕</span>}
+                {submitted && isCorrect && <span>✓</span>}
+                {submitted && isPicked && !isCorrect && <span>✕</span>}
               </div>
             );
           })}
         </div>
 
-        {picked[current] === "skipped" && (
-          <div className="mt-4 text-xs text-[#9FC9BE] bg-ink/40 rounded p-3">
-            Skipped — correct answer was{" "}
-            <span className="text-mint">
-              {String.fromCharCode(97 + q.correct_index)}
-            </span>
-            . {q.explanation}
-          </div>
-        )}
-        {hasAnswered && picked[current] !== "skipped" && q.explanation && (
-          <div className="mt-4 text-xs text-[#9FC9BE] bg-ink/40 rounded p-3">
-            {q.explanation}
+        {/* Explanation Box */}
+        {submitted && (
+          <div className="mt-4 text-xs text-[#9FC9BE] bg-ink/40 rounded p-3 border border-border">
+            {picked[current] === "skipped" || picked[current] === undefined ? (
+              <>
+                Not answered — correct answer was{" "}
+                <span className="text-mint font-semibold">
+                  {String.fromCharCode(97 + q.correct_index)}
+                </span>
+                .{" "}
+              </>
+            ) : picked[current] !== q.correct_index ? (
+              <>
+                Incorrect — correct answer was{" "}
+                <span className="text-mint font-semibold">
+                  {String.fromCharCode(97 + q.correct_index)}
+                </span>
+                .{" "}
+              </>
+            ) : null}            {q.explanation}
           </div>
         )}
 
+        {/* Action Buttons */}
         <div className="flex gap-3 mt-6">
-          {!hasAnswered && (
+          {!submitted && (
             <button
               onClick={handleSkip}
               className="flex-1 border border-border text-[#9FC9BE] font-mono text-sm tracking-wide rounded py-3 hover:border-gold transition-colors"
@@ -197,8 +259,8 @@ export default function Quiz({ quizData, onFinished }) {
           )}
           <button
             onClick={handleNext}
-            disabled={!hasAnswered}
-            className="flex-1 bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity disabled:opacity-40"
+            // Removed disabled={!hasAnswered} so user can navigate freely before submit
+            className="flex-1 bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity"
           >
             {isLast ? "Finish Quiz" : "Next"}
           </button>
@@ -214,14 +276,8 @@ function formatClock(totalSeconds) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/**
- * Computes the full result locally from data the frontend already has
- * (questions include correct_index + topic). This means results never
- * depend on the backend being reachable.
- */
 function computeResult(questions, picked, timings, marksConfig) {
   const { negativeMarking, correctMarks, negativeMarks } = marksConfig;
-
   let correctCount = 0;
   let wrongCount = 0;
   let skippedCount = 0;
@@ -229,7 +285,6 @@ function computeResult(questions, picked, timings, marksConfig) {
   let correctTimeSum = 0;
   let wrongTimeSum = 0;
   let skippedTimeSum = 0;
-
   const topicStats = {};
 
   questions.forEach((q, idx) => {
@@ -237,8 +292,7 @@ function computeResult(questions, picked, timings, marksConfig) {
     topicStats[topic] = topicStats[topic] || {
       correct: 0,
       wrong: 0,
-      skipped: 0,
-      score: 0,
+      skipped: 0,      score: 0,
     };
 
     const answer = picked[idx];
@@ -268,10 +322,9 @@ function computeResult(questions, picked, timings, marksConfig) {
   });
 
   const totalTimeSec = Object.values(timings).reduce((a, b) => a + b, 0);
-
   const topicBreakdown = Object.entries(topicStats)
     .map(([topic, s]) => ({ topic, ...s }))
-    .sort((a, b) => a.score - b.score); // weakest first
+    .sort((a, b) => a.score - b.score);
 
   return {
     totalMarks,
@@ -288,5 +341,4 @@ function computeResult(questions, picked, timings, marksConfig) {
       avgSkippedSec: skippedCount ? Math.round(skippedTimeSum / skippedCount) : 0,
       totalTimeSec,
     },
-  };
-}
+  };}

@@ -91,14 +91,14 @@ export default function UploadBox({ onQuizReady }) {
           Upload your PDF
         </h2>
         <p className="mt-2 text-sm text-[#9FC9BE] max-w-xl">
-          Upload your NCERT notes, coaching PDF or PYQ file to generate an interactive quiz with AI.
+          Upload your NCERT notes, coaching module or PYQ PDF to generate an AI-powered quiz with detailed performance analysis.
         </p>
       </div>
 
       {/* 📄 Upload Area */}
       <label
         htmlFor="pdf-upload"
-        className="block border-2 border-dashed border-gold/30 rounded-2xl py-14 text-center cursor-pointer hover:border-gold hover:bg-gold/5 transition-all duration-300"
+        className="block border-2 border-dashed border-gold/30 rounded-2xl py-14 text-center cursor-pointer hover:border-gold hover:bg-gold/5 hover:-translate-y-1 transition-all duration-300"
       >
         <input
           id="pdf-upload"
@@ -108,7 +108,7 @@ export default function UploadBox({ onQuizReady }) {
           className="hidden"
         />
         <div className="text-5xl mb-4">📄</div>
-        <div className="font-semibold text-lg text-[#F4EFE0]">
+        <div className="font-semibold text-lg text-[#F4EFE0] truncate px-4">
           {file ? file.name : "Choose your PDF"}
         </div>
         <p className="text-sm text-[#6E9B8D] mt-2">
@@ -146,7 +146,7 @@ export default function UploadBox({ onQuizReady }) {
         <div className="space-y-6">
           
           {/* 📘 Section 1: Subject & Chapter */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               📘 Subject & Chapter
             </div>
@@ -182,7 +182,7 @@ export default function UploadBox({ onQuizReady }) {
           </div>
 
           {/* ⚙️ Section 2: Quiz Settings */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               ⚙️ Quiz Settings
             </div>
@@ -244,7 +244,7 @@ export default function UploadBox({ onQuizReady }) {
           </div>
 
           {/* 📝 Section 3: Exam Settings */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               📝 Exam Settings
             </div>
@@ -317,33 +317,44 @@ export default function UploadBox({ onQuizReady }) {
             </div>
           </div>
 
-          {/* 📊 Summary Card */}
-          <div className="bg-ink/40 border border-border rounded-xl p-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
-            <div className="flex justify-between text-sm">
-              <span className="text-[#9FC9BE]">Questions</span>
-              <span className="font-mono text-[#F4EFE0] font-semibold">{numQuestions}</span>
+          {/* Quiz Summary Card */}
+          <div className="bg-ink/40 border border-border rounded-xl p-4 space-y-2 hover:border-gold/30 hover:shadow-xl transition-all duration-300">
+            <div className="text-xs font-mono tracking-[2px] text-[#6E9B8D] uppercase">
+              Quiz Summary
             </div>
 
-            <div className="flex justify-between text-sm mt-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Questions</span>
+              <span className="font-mono text-[#F4EFE0]">{numQuestions}</span>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Difficulty</span>
+              <span className="capitalize text-[#F4EFE0]">{difficulty}</span>
+            </div>
+
+            <div className="flex justify-between text-sm">
               <span className="text-[#9FC9BE]">Mode</span>
-              <span className="font-mono text-[#F4EFE0] font-semibold">
+              <span className="text-[#F4EFE0]">
                 {mode === "extract_existing"
                   ? "Previous Year Questions"
                   : "AI Generated"}
               </span>
             </div>
 
-            <div className="flex justify-between text-sm mt-2">
-              <span className="text-[#9FC9BE]">Difficulty</span>
-              <span className="font-mono text-[#F4EFE0] font-semibold capitalize">{difficulty}</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Timer</span>
+              <span className="text-[#F4EFE0]">
+                {timerEnabled ? `${totalMinutes} min` : "Disabled"}
+              </span>
             </div>
           </div>
 
           {/* 🚀 Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={status === "generating"}
-            className="w-full bg-gold text-ink font-mono text-base font-bold tracking-wide rounded-xl py-4 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={!docInfo || status === "generating"}
+            className="w-full bg-gold text-ink font-mono text-base font-bold tracking-wide rounded-xl py-4 shadow-xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(212,175,55,0.35)] active:scale-95 transition-all disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 disabled:hover:shadow-none flex items-center justify-center gap-2"
           >
             {status === "generating" ? (
               <span className="inline-flex items-center gap-2 animate-pulse">

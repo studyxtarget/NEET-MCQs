@@ -4,15 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0B1F1C",
-        panel: "#102B25",
-        border: "#1E4038",
-        gold: "#C9A24B",
+        ink: "#0B0F0E",
+        panel: "#151A19",
+        card: "#1A211F",
+        border: "#262E2C",
+        gold: "#D4AF6A",
+        emerald: "#4E9B7A",
         mint: "#7FBFA0",
-        rose: "#C45A50",
+        rose: "#D9776C",
       },
       fontFamily: {
-        display: ["Fraunces", "Georgia", "serif"],
+        display: ["'Playfair Display'", "Georgia", "serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["'IBM Plex Mono'", "monospace"],
       },
     },

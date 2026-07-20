@@ -1,8 +1,9 @@
 // Points at your local FastAPI server (see backend/README.md).
 // For deployment, replace with your real backend URL or read from
 // an env var: `import.meta.env.VITE_API_BASE_URL`.
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://neet-mcq-backend-production.up.railway.app";
 async function handleResponse(res) {
   if (!res.ok) {
     let detail = res.statusText;

@@ -90,6 +90,9 @@ export default function UploadBox({ onQuizReady }) {
         <h2 className="font-display text-2xl md:text-3xl text-[#F4EFE0]">
           Upload your PDF
         </h2>
+        <p className="mt-2 text-sm text-[#9FC9BE] max-w-xl">
+          Upload your NCERT notes, coaching PDF or PYQ file to generate an interactive quiz with AI.
+        </p>
       </div>
 
       {/* 📄 Upload Area */}
@@ -110,6 +113,9 @@ export default function UploadBox({ onQuizReady }) {
         </div>
         <p className="text-sm text-[#6E9B8D] mt-2">
           NCERT • Notes • PYQs
+        </p>
+        <p className="text-[11px] text-[#5C8579] mt-2 font-mono">
+          Supported: PDF • Max Size: 25 MB
         </p>
       </label>
 
@@ -140,7 +146,7 @@ export default function UploadBox({ onQuizReady }) {
         <div className="space-y-6">
           
           {/* 📘 Section 1: Subject & Chapter */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               📘 Subject & Chapter
             </div>
@@ -176,7 +182,7 @@ export default function UploadBox({ onQuizReady }) {
           </div>
 
           {/* ⚙️ Section 2: Quiz Settings */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               ⚙️ Quiz Settings
             </div>
@@ -192,7 +198,7 @@ export default function UploadBox({ onQuizReady }) {
                   max={50}
                   value={numQuestions}
                   onChange={(e) => setNumQuestions(Number(e.target.value))}
-                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none"
+                  className="w-full bg-ink border border-border rounded-xl px-3 py-2.5 text-sm text-[#EDEDE3] focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all outline-none font-mono"
                 />
               </div>
               <div>
@@ -238,7 +244,7 @@ export default function UploadBox({ onQuizReady }) {
           </div>
 
           {/* 📝 Section 3: Exam Settings */}
-          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4">
+          <div className="bg-ink/40 border border-border rounded-xl p-5 space-y-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
             <div className="text-xs tracking-[2px] text-[#6E9B8D] font-mono font-semibold uppercase">
               📝 Exam Settings
             </div>
@@ -311,16 +317,44 @@ export default function UploadBox({ onQuizReady }) {
             </div>
           </div>
 
+          {/* 📊 Summary Card */}
+          <div className="bg-ink/40 border border-border rounded-xl p-4 hover:border-gold/30 hover:shadow-lg transition-all duration-300">
+            <div className="flex justify-between text-sm">
+              <span className="text-[#9FC9BE]">Questions</span>
+              <span className="font-mono text-[#F4EFE0] font-semibold">{numQuestions}</span>
+            </div>
+
+            <div className="flex justify-between text-sm mt-2">
+              <span className="text-[#9FC9BE]">Mode</span>
+              <span className="font-mono text-[#F4EFE0] font-semibold">
+                {mode === "extract_existing"
+                  ? "Previous Year Questions"
+                  : "AI Generated"}
+              </span>
+            </div>
+
+            <div className="flex justify-between text-sm mt-2">
+              <span className="text-[#9FC9BE]">Difficulty</span>
+              <span className="font-mono text-[#F4EFE0] font-semibold capitalize">{difficulty}</span>
+            </div>
+          </div>
+
           {/* 🚀 Generate Button */}
           <button
             onClick={handleGenerate}
             disabled={status === "generating"}
-            className="w-full bg-gold text-ink font-mono text-base font-bold tracking-wide rounded-xl py-4 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
+            className="w-full bg-gold text-ink font-mono text-base font-bold tracking-wide rounded-xl py-4 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {status === "generating" ? "⏳ Generating Quiz..." : "🚀 Generate Quiz"}
+            {status === "generating" ? (
+              <span className="inline-flex items-center gap-2 animate-pulse">
+                <span>⏳</span> Generating Quiz...
+              </span>
+            ) : (
+              <span>🚀 Generate Quiz</span>
+            )}
           </button>
         </div>
       )}
     </div>
   );
-                }
+}

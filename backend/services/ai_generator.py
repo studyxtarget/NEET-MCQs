@@ -18,7 +18,7 @@ from models.schemas import GenerationMode, Difficulty
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # gemini-2.5-flash is Google's current price/performance workhorse model.
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.5-flash-lite"
 
 EXTRACT_SYSTEM_PROMPT = """You are formatting an existing bank of NEET previous-year \
 questions (PYQs) into structured JSON. Do not invent new questions, do not change \

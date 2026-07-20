@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { submitQuiz } from "./api";
+import QuestionPalette from "./QuestionPalette";
 
-export default function Quiz({ quizData, onFinished }) {
+export default function Quiz({ quizData, onFinished, onExit }) {
   const { doc_id: docId, questions, settings = {} } = quizData;
   const {
     timerEnabled = false,
@@ -12,32 +13,34 @@ export default function Quiz({ quizData, onFinished }) {
   } = settings;
 
   const [current, setCurrent] = useState(0);
-  const [picked, setPicked] = useState({}); 
-  const [timings, setTimings] = useState({}); 
-  const [visited, setVisited] = useState({ 0: true }); 
-  const [marked, setMarked] = useState({}); 
+  const [answers, setAnswers] = useState({}); // idx -> selected option index
+  const [flagged, setFlagged] = useState(() => new Set());
+  const [bookmarked, setBookmarked] = useState(() => new Set());
+  const [visited, setVisited] = useState(() => new Set([0]));
+  const [timings, setTimings] = useState({}); // idx -> accumulated seconds
   const [elapsedTotal, setElapsedTotal] = useState(0);
   const [totalSecondsLeft, setTotalSecondsLeft] = useState(totalSeconds);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [finalResult, setFinalResult] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [exitConfirm, setExitConfirm] = useState(false);
+  const [submitConfirm, setSubmitConfirm] = useState(false);
 
   const questionStartRef = useRef(Date.now());
   const finishQuizRef = useRef(() => {});
 
   const q = questions[current];
-  const isLast = current === questions.length - 1;
+  const totalQ = questions.length;
+  const answeredCount = Object.keys(answers).length;
+  const isLast = current === totalQ - 1;
 
-  useEffect(() => {
-    setVisited((prev) => ({ ...prev, [current]: true }));
-    questionStartRef.current = Date.now();
-  }, [current]);
-
+  // Overall elapsed timer -- used for the "no limit" clock display.
   useEffect(() => {
     const id = setInterval(() => setElapsedTotal((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // Whole-quiz countdown. Auto-submits everything answered so far the
+  // moment it hits zero.
   useEffect(() => {
     if (!timerEnabled || totalSecondsLeft === null) return;
     if (totalSecondsLeft <= 0) {
@@ -47,267 +50,270 @@ export default function Quiz({ quizData, onFinished }) {
       }
       return;
     }
-    const id = setTimeout(() => setTotalSecondsLeft((s) => s - 1), 1000);    return () => clearTimeout(id);
+    const id = setTimeout(() => setTotalSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(id);
   }, [totalSecondsLeft, timerEnabled, autoSubmitted]);
 
-  // Pick Answer (Preserves first attempt timing)
-  const handlePick = (idx) => {
-    if (submitted) return;
-    const isAlreadyAnswered = picked[current] !== undefined;
-    
-    if (!isAlreadyAnswered) {
-      const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
-      setTimings((prev) => ({ ...prev, [current]: spent }));
-    }
-    setPicked((prev) => ({ ...prev, [current]: idx }));
+  const flushTime = (idx) => {
+    const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
+    setTimings((prev) => ({ ...prev, [idx]: (prev[idx] || 0) + spent }));
+    questionStartRef.current = Date.now();
   };
 
-  // Skip Question
-  const handleSkip = () => {
-    if (submitted) return;
-    const isAlreadyAnswered = picked[current] !== undefined;
-    
-    if (!isAlreadyAnswered) {
-      const spent = Math.round((Date.now() - questionStartRef.current) / 1000);
-      setTimings((prev) => ({ ...prev, [current]: spent }));
-    }
-    setPicked((prev) => ({ ...prev, [current]: "skipped" }));
+  const goTo = (idx) => {
+    if (idx === current || idx < 0 || idx >= totalQ) return;
+    flushTime(current);
+    setCurrent(idx);
+    setVisited((prev) => new Set(prev).add(idx));
+    setPaletteOpen(false);
   };
 
-  // Mark for Review
-  const handleMarkReview = () => {
-    if (submitted) return;
-    setMarked((prev) => ({ ...prev, [current]: !prev[current] }));
+  const selectOption = (idx) => {
+    setAnswers((prev) => ({ ...prev, [current]: idx }));
   };
 
-  // NEW: Clear Response (Removes answer, keeps visited/marked state)
-  const handleClearResponse = () => {
-    if (submitted) return;
-    setPicked((prev) => {
-      const next = { ...prev };
-      delete next[current]; // Completely removes the answer
+  const toggleFlag = () => {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      next.has(current) ? next.delete(current) : next.add(current);
       return next;
     });
-    // visited and marked states remain untouched. 
-    // Palette will automatically fall back to Yellow (Visited) or Purple (Marked).
   };
 
-  const handleFinishQuiz = async () => {
-    const result = computeResult(questions, picked, timings, {
+  const toggleBookmark = () => {
+    setBookmarked((prev) => {
+      const next = new Set(prev);
+      next.has(current) ? next.delete(current) : next.add(current);
+      return next;
+    });
+  };
+
+  const finishQuiz = () => {
+    flushTime(current);
+    const result = computeResult(questions, answers, timings, {
       negativeMarking,
       correctMarks,
-      negativeMarks,    });
-    setFinalResult(result);
-    setSubmitted(true); 
-
+      negativeMarks,
+    });
     submitQuiz({
       docId,
-      answers: Object.entries(picked)
-        .filter(([, v]) => v !== "skipped")
-        .map(([qIdx, selIdx]) => ({
-          question_index: Number(qIdx),
-          selected_index: selIdx,
-        })),
+      answers: Object.entries(answers).map(([qi, si]) => ({
+        question_index: Number(qi),
+        selected_index: si,
+      })),
     }).catch(() => {});
+    onFinished(result);
   };
+  finishQuizRef.current = finishQuiz;
 
-  const handleViewResults = () => {
-    if (finalResult) {
-      onFinished(finalResult);
+  const handleSubmitClick = () => {
+    if (answeredCount < totalQ) {
+      setSubmitConfirm(true);
+      return;
     }
+    finishQuiz();
   };
 
-  finishQuizRef.current = handleFinishQuiz;
-
-  const handleNext = () => {
-    if (!isLast && !submitted) {
-      setCurrent((c) => c + 1);
-    } else if (!submitted) {
-      handleFinishQuiz(); 
-    } else {
-      handleViewResults(); 
-    }
-  };
-
-  const marksLabel =
-    negativeMarking && (correctMarks || negativeMarks)
-      ? `+${correctMarks}/−${negativeMarks}`
-      : null;
+  const marksLabel = negativeMarking
+    ? `+${correctMarks}/−${negativeMarks}`
+    : `+${correctMarks}`;
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      {/* Header: Progress & Timer */}
-      <div className="flex justify-between items-center mb-4 gap-4">
-        <span className="font-mono text-xs text-[#9FC9BE] whitespace-nowrap">
-          Q{current + 1}/{questions.length}
-        </span>
-        <div className="flex-1 h-1.5 bg-[#1B3A33] rounded overflow-hidden">
+    <div className="min-h-screen flex flex-col">
+      {/* Top bar */}
+      <div className="sticky top-0 bg-ink/95 backdrop-blur border-b border-border px-4 py-2.5 z-20">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setExitConfirm(true)}
+            className="text-[#8A9490] text-lg leading-none px-1"
+          >
+            ✕
+          </button>
+          <span className="font-mono text-xs text-[#8A9490]">
+            {current + 1} / {totalQ}
+          </span>
+          <div className="flex items-center gap-3">
+            <span
+              className={`font-mono text-xs ${
+                timerEnabled && totalSecondsLeft <= 60
+                  ? "text-rose"
+                  : "text-[#8A9490]"
+              }`}
+            >
+              {timerEnabled
+                ? formatClock(Math.max(totalSecondsLeft, 0))
+                : formatClock(elapsedTotal)}
+            </span>
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="text-[#8A9490] text-base leading-none"
+            >
+              ☰
+            </button>
+          </div>
+        </div>
+        <div className="h-1 bg-[#1B211F] rounded-full overflow-hidden">
           <div
             className="h-full bg-gold transition-all"
-            style={{ width: `${((current + 1) / questions.length) * 100}%` }}
-          />        </div>
-        <span
-          className={`font-mono text-xs whitespace-nowrap ${
-            timerEnabled && totalSecondsLeft <= 60 ? "text-rose" : "text-[#9FC9BE]"
-          }`}
-        >
-          {timerEnabled
-            ? formatClock(Math.max(totalSecondsLeft, 0))
-            : formatClock(elapsedTotal)}
-        </span>
+            style={{ width: `${((current + 1) / totalQ) * 100}%` }}
+          />
+        </div>
       </div>
 
-      {/* Question Palette */}
-      <div className="mb-6 grid grid-cols-8 sm:grid-cols-10 gap-2">
-        {questions.map((_, idx) => {
-          let paletteClass = "bg-ink border-border text-[#5C7269]"; 
-          
-          if (submitted) {
-            if (picked[idx] === undefined) {
-              paletteClass = "bg-ink border-border text-[#5C7269]"; 
-            } else if (picked[idx] === questions[idx].correct_index) {
-              paletteClass = "bg-mint/20 border-mint text-mint"; 
-            } else {
-              paletteClass = "bg-rose/20 border-rose text-rose"; 
-            }
-          } else {
-            if (marked[idx]) {
-              paletteClass = "bg-purple-500/20 border-purple-500 text-purple-400"; 
-            } else if (picked[idx] !== undefined && picked[idx] !== "skipped") {
-              paletteClass = "bg-mint/20 border-mint text-mint"; 
-            } else if (visited[idx]) {
-              paletteClass = "bg-gold/20 border-gold text-gold"; 
-            }
-            
-            if (idx === current) {
-              paletteClass += " ring-2 ring-gold"; 
-            }
-          }
-
-          return (
-            <button
-              key={idx}
-              onClick={() => setCurrent(idx)} 
-              className={`h-8 w-8 rounded-md border text-xs font-mono flex items-center justify-center transition-colors ${paletteClass}`}
-            >
-              {idx + 1}
-            </button>
-          );
-        })}
-      </div>
-      {/* Question Card */}
-      <div className="bg-panel border border-border rounded-xl p-6">
-        <div className="flex justify-between items-center mb-2">
-          {q.source_year && (
-            <span className="font-mono text-xs text-[#5C8579]">
+      {/* Question */}
+      <div className="flex-1 px-5 py-6 max-w-lg mx-auto w-full">
+        <div className="flex items-center justify-between mb-3">
+          {q.source_year ? (
+            <span className="font-mono text-[11px] text-[#6B7873]">
               {q.source_year}
             </span>
+          ) : (
+            <span />
           )}
-          {marksLabel && (
-            <span className="font-mono text-xs text-gold ml-auto">
-              {marksLabel}
-            </span>
-          )}
+          <span className="font-mono text-[11px] text-gold">{marksLabel}</span>
         </div>
-        
-        <p className="text-[#EDEDE3] text-base leading-relaxed whitespace-pre-line mb-5">
+
+        <p className="text-[#F0F2F0] text-[17px] leading-relaxed mb-6 whitespace-pre-line">
           {q.question}
         </p>
 
-        {/* Options */}
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {q.options.map((opt, idx) => {
-            const isCorrect = idx === q.correct_index;
-            const isPicked = idx === picked[current];
-            
-            let classes = "border-[#254B42] bg-ink text-[#D8D8CC] hover:border-gold";
-            
-            if (submitted) {
-              if (isCorrect) classes = "border-mint bg-mint/10 text-[#B9E8CE]";
-              else if (isPicked) classes = "border-rose bg-rose/10 text-[#F0B5AE]";
-              else classes = "border-[#1E3A33] text-[#5C7269]";
-            } else {
-              if (isPicked) classes = "border-gold bg-gold/10 text-gold";
-            }
-
+            const isSelected = answers[current] === idx;
             return (
               <div
                 key={idx}
-                onClick={() => handlePick(idx)}
-                className={`border rounded-lg px-4 py-3 text-sm cursor-pointer transition-colors flex items-center gap-3 ${classes}`}
-              >
-                <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] flex-shrink-0">
-                  {String.fromCharCode(97 + idx)}
-                </span>
-                <span className="flex-1">{opt}</span>
-                {submitted && isCorrect && <span>✓</span>}
-                {submitted && isPicked && !isCorrect && <span>✕</span>}
-              </div>
-            );          })}
-        </div>
-
-        {/* Explanation Box */}
-        {submitted && (
-          <div className="mt-4 text-xs text-[#9FC9BE] bg-ink/40 rounded p-3 border border-border">
-            {picked[current] === "skipped" || picked[current] === undefined ? (
-              <>
-                Not answered — correct answer was{" "}
-                <span className="text-mint font-semibold">
-                  {String.fromCharCode(97 + q.correct_index)}
-                </span>
-                .{" "}
-              </>
-            ) : picked[current] !== q.correct_index ? (
-              <>
-                Incorrect — correct answer was{" "}
-                <span className="text-mint font-semibold">
-                  {String.fromCharCode(97 + q.correct_index)}
-                </span>
-                .{" "}
-              </>
-            ) : null}
-            {q.explanation}
-          </div>
-        )}
-
-        {/* Action Buttons (Responsive Grid/Flex) */}
-        <div className="flex flex-wrap gap-3 mt-6">
-          {!submitted && (
-            <>
-              <button
-                onClick={handleMarkReview}
-                className={`flex-1 min-w-[100px] border font-mono text-sm tracking-wide rounded py-3 transition-colors ${
-                  marked[current]
-                    ? "border-purple-500 bg-purple-500/10 text-purple-400"
-                    : "border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => selectOption(idx)}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl cursor-pointer transition-all ${
+                  isSelected
+                    ? "bg-gold/12 border border-gold"
+                    : "bg-card border border-transparent hover:border-border"
                 }`}
               >
-                {marked[current] ? "Unmark" : "Review"}
-              </button>
-              
-              <button
-                onClick={handleClearResponse}
-                disabled={picked[current] === undefined}
-                className="flex-1 min-w-[100px] border border-rose/50 text-rose font-mono text-sm tracking-wide rounded py-3 hover:bg-rose/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Clear
-              </button>
-              <button
-                onClick={handleSkip}
-                className="flex-1 min-w-[100px] border border-border text-[#9FC9BE] font-mono text-sm tracking-wide rounded py-3 hover:border-gold transition-colors"
-              >
-                Skip
-              </button>
-            </>
-          )}
-          
+                <span
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] flex-shrink-0 font-medium ${
+                    isSelected
+                      ? "bg-gold text-ink"
+                      : "border border-[#3A423F] text-[#8A9490]"
+                  }`}
+                >
+                  {String.fromCharCode(97 + idx)}
+                </span>
+                <span className="text-[#E4E7E4] text-[15px]">{opt}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-center gap-6 mt-6">
           <button
-            onClick={handleNext}
-            className="flex-1 min-w-[120px] bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity"
+            onClick={toggleFlag}
+            className={`flex items-center gap-1.5 text-xs font-medium ${
+              flagged.has(current) ? "text-rose" : "text-[#6B7873]"
+            }`}
           >
-            {!submitted 
-              ? (isLast ? "Finish Quiz" : "Next") 
-              : (isLast ? "View Results" : "Next")}
+            🚩 {flagged.has(current) ? "Flagged" : "Flag for review"}
+          </button>
+          <button
+            onClick={toggleBookmark}
+            className={`flex items-center gap-1.5 text-xs font-medium ${
+              bookmarked.has(current) ? "text-gold" : "text-[#6B7873]"
+            }`}
+          >
+            {bookmarked.has(current) ? "★" : "☆"} Bookmark
+          </button>
+        </div>
+      </div>
+
+      {/* Sticky bottom actions */}
+      <div className="sticky bottom-0 bg-ink/95 backdrop-blur border-t border-border px-4 py-3 flex gap-3">
+        <button
+          onClick={() => goTo(current - 1)}
+          disabled={current === 0}
+          className="flex-1 border border-border text-[#B8C0BC] text-sm font-medium rounded-lg py-3 disabled:opacity-30"
+        >
+          Previous
+        </button>
+        {isLast ? (
+          <button
+            onClick={handleSubmitClick}
+            className="flex-1 bg-gold text-ink text-sm font-semibold rounded-lg py-3"
+          >
+            Submit
+          </button>
+        ) : (
+          <button
+            onClick={() => goTo(current + 1)}
+            className="flex-1 bg-gold text-ink text-sm font-semibold rounded-lg py-3"
+          >
+            Next
+          </button>
+        )}
+      </div>
+
+      {paletteOpen && (
+        <QuestionPalette
+          questions={questions}
+          current={current}
+          answers={answers}
+          flagged={flagged}
+          visited={visited}
+          onJump={goTo}
+          onClose={() => setPaletteOpen(false)}
+          onSubmit={() => {
+            setPaletteOpen(false);
+            handleSubmitClick();
+          }}
+        />
+      )}
+
+      {exitConfirm && (
+        <ConfirmModal
+          title="Exit the exam?"
+          message="Your progress on this attempt will be lost."
+          confirmLabel="Exit"
+          onConfirm={onExit}
+          onCancel={() => setExitConfirm(false)}
+        />
+      )}
+
+      {submitConfirm && (
+        <ConfirmModal
+          title="Submit with unanswered questions?"
+          message={`You've answered ${answeredCount} of ${totalQ}. Unanswered questions score zero.`}
+          confirmLabel="Submit anyway"
+          onConfirm={finishQuiz}
+          onCancel={() => setSubmitConfirm(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-6"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-panel border border-border rounded-2xl p-6 max-w-sm w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="font-display text-lg text-[#F0F2F0] mb-2">{title}</h3>
+        <p className="text-sm text-[#8A9490] mb-6">{message}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 border border-border text-[#B8C0BC] text-sm rounded-lg py-2.5"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 bg-gold text-ink text-sm font-semibold rounded-lg py-2.5"
+          >
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -315,14 +321,19 @@ export default function Quiz({ quizData, onFinished }) {
   );
 }
 
-function formatClock(totalSeconds) {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
+function formatClock(totalSecondsValue) {
+  const m = Math.floor(totalSecondsValue / 60);
+  const s = totalSecondsValue % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function computeResult(questions, picked, timings, marksConfig) {
+/**
+ * Computes the full result locally (questions already carry correct_index
+ * + topic from generation), so results never depend on the backend.
+ */
+function computeResult(questions, answers, timings, marksConfig) {
   const { negativeMarking, correctMarks, negativeMarks } = marksConfig;
+
   let correctCount = 0;
   let wrongCount = 0;
   let skippedCount = 0;
@@ -330,6 +341,7 @@ function computeResult(questions, picked, timings, marksConfig) {
   let correctTimeSum = 0;
   let wrongTimeSum = 0;
   let skippedTimeSum = 0;
+
   const topicStats = {};
 
   questions.forEach((q, idx) => {
@@ -341,9 +353,10 @@ function computeResult(questions, picked, timings, marksConfig) {
       score: 0,
     };
 
-    const answer = picked[idx];    const timeSpent = timings[idx] || 0;
+    const answer = answers[idx];
+    const timeSpent = timings[idx] || 0;
 
-    if (answer === undefined || answer === "skipped") {
+    if (answer === undefined) {
       skippedCount += 1;
       skippedTimeSum += timeSpent;
       topicStats[topic].skipped += 1;
@@ -367,9 +380,10 @@ function computeResult(questions, picked, timings, marksConfig) {
   });
 
   const totalTimeSec = Object.values(timings).reduce((a, b) => a + b, 0);
+
   const topicBreakdown = Object.entries(topicStats)
     .map(([topic, s]) => ({ topic, ...s }))
-    .sort((a, b) => a.score - b.score);
+    .sort((a, b) => a.score - b.score); // weakest first
 
   return {
     totalMarks,
@@ -387,4 +401,4 @@ function computeResult(questions, picked, timings, marksConfig) {
       totalTimeSec,
     },
   };
-                }
+}

@@ -63,6 +63,8 @@ export default function UploadBox({ onQuizReady }) {
       });
       onQuizReady({
         ...quiz,
+        subject,
+        chapter: chapter || null,
         settings: {
           timerEnabled,
           totalSeconds: timerEnabled ? Number(totalMinutes) * 60 : null,
@@ -153,7 +155,7 @@ export default function UploadBox({ onQuizReady }) {
               <input
                 type="number"
                 min={1}
-                max={500}
+                max={50}
                 value={numQuestions}
                 onChange={(e) => setNumQuestions(Number(e.target.value))}
                 className="w-full bg-ink border border-border rounded px-3 py-2 text-sm text-[#EDEDE3]"
@@ -216,35 +218,16 @@ export default function UploadBox({ onQuizReady }) {
               {timerEnabled && (
                 <div className="flex items-center gap-2">
                   <input
-  type="number"
-  min={1}
-  max={300}
-  value={totalMinutes}
-  placeholder="15"
-  onChange={(e) => {
-    setMinutesTouched(true);
-
-    const value = e.target.value;
-
-    if (value === "") {
-      setTotalMinutes("");
-      return;
-    }
-
-    const num = Number(value);
-
-    if (!Number.isNaN(num)) {
-      setTotalMinutes(num);
-    }
-  }}
-  onBlur={() => {
-    if (totalMinutes === "") {
-      setTotalMinutes(numQuestions);
-      setMinutesTouched(false);
-    }
-  }}
-  className="w-16 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
-/>
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={totalMinutes}
+                    onChange={(e) => {
+                      setMinutesTouched(true);
+                      setTotalMinutes(Number(e.target.value));
+                    }}
+                    className="w-16 bg-ink border border-border rounded px-2 py-1 text-sm text-[#EDEDE3]"
+                  />
                   <span className="text-xs text-[#6E9B8D]">min</span>
                 </div>
               )}

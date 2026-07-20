@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 
 export default function Instructions({ quizData, onStart }) {
-  const { questions, mode, settings = {} } = quizData;
+  const { questions, mode, subject, chapter, settings = {} } = quizData;
   const {
     timerEnabled = false,
     totalSeconds = null,
@@ -10,6 +10,7 @@ export default function Instructions({ quizData, onStart }) {
     negativeMarks = 1,
   } = settings;
 
+  const [acknowledged, setAcknowledged] = useState(false);
   const totalMinutes = totalSeconds ? Math.round(totalSeconds / 60) : null;
 
   return (
@@ -20,27 +21,26 @@ export default function Instructions({ quizData, onStart }) {
       </h2>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <InfoCard label="Questions" value={questions.length} />
+        <InfoCard icon="📚" label="Subject" value={subject || "General"} />
+        <InfoCard icon="📖" label="Chapter" value={chapter || "Not specified"} />
+        <InfoCard icon="❓" label="Questions" value={questions.length} />
         <InfoCard
-          label="Duration"
+          icon="⏱"
+          label="Total Time"
           value={timerEnabled ? `${totalMinutes} min` : "No limit"}
         />
+        <InfoCard icon="➕" label="Correct" value={`+${correctMarks}`} />
         <InfoCard
-          label="Marking"
-          value={
-            negativeMarking ? `+${correctMarks} / −${negativeMarks}` : `+${correctMarks} only`
-          }
-        />
-        <InfoCard
-          label="Source"
-          value={mode === "extract_existing" ? "PYQ bank" : "AI-generated"}
+          icon="➖"
+          label="Incorrect"
+          value={negativeMarking ? `−${negativeMarks}` : "No penalty"}
         />
       </div>
 
-      <div className="text-xs tracking-[2px] text-[#6E9B8D] mb-3">
-        INSTRUCTIONS
+      <div className="flex items-center gap-2 text-xs tracking-[2px] text-[#6E9B8D] mb-3">
+        <span>📌</span> IMPORTANT INSTRUCTIONS
       </div>
-      <ul className="space-y-2 text-sm text-[#D8D8CC] mb-8">
+      <ul className="space-y-2 text-sm text-[#D8D8CC] mb-6">
         <li className="flex gap-2">
           <span className="text-gold">·</span>
           Each question has exactly one correct option.
@@ -52,14 +52,14 @@ export default function Instructions({ quizData, onStart }) {
         </li>
         <li className="flex gap-2">
           <span className="text-gold">·</span>
-          Use "Skip" if you don't want to attempt a question.
+          Use "Skip" if you don't want to attempt a question. Skipped
+          questions score zero — no penalty.
         </li>
         {negativeMarking && (
           <li className="flex gap-2">
             <span className="text-gold">·</span>
             Wrong answers deduct {negativeMarks} mark
-            {negativeMarks === 1 ? "" : "s"}. Skipped questions score zero —
-            no penalty.
+            {negativeMarks === 1 ? "" : "s"} each.
           </li>
         )}
         {timerEnabled && (
@@ -70,25 +70,43 @@ export default function Instructions({ quizData, onStart }) {
             yourself.
           </li>
         )}
+        <li className="flex gap-2">
+          <span className="text-gold">·</span>
+          Once you tap "Start Exam" below, the timer (if enabled) begins
+          immediately.
+        </li>
       </ul>
+
+      <label className="flex items-start gap-3 text-sm text-[#EDEDE3] cursor-pointer mb-6 select-none">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>I have read all instructions</span>
+      </label>
 
       <button
         onClick={onStart}
-        className="w-full bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity"
+        disabled={!acknowledged}
+        className="w-full bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Start Exam
+        🚀 Start Exam
       </button>
     </div>
   );
 }
 
-function InfoCard({ label, value }) {
+function InfoCard({ icon, label, value }) {
   return (
     <div className="bg-ink/40 border border-border rounded-lg px-4 py-3">
       <div className="font-mono text-[10px] tracking-wide text-[#6E9B8D] mb-1">
-        {label.toUpperCase()}
+        {icon} {label.toUpperCase()}
       </div>
-      <div className="text-[#F4EFE0] text-sm font-medium">{value}</div>
+      <div className="text-[#F4EFE0] text-sm font-medium truncate">
+        {value}
+      </div>
     </div>
   );
 }

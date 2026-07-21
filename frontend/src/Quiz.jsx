@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { submitQuiz } from "./api";
+import QuestionPalette from "./QuestionPalette";
 
 export default function Quiz({ quizData, onFinished }) {
   const { doc_id: docId, questions, settings = {} } = quizData;
@@ -21,6 +22,7 @@ export default function Quiz({ quizData, onFinished }) {
   const [autoSubmitted, setAutoSubmitted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [finalResult, setFinalResult] = useState(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const questionStartRef = useRef(Date.now());
   const finishQuizRef = useRef(() => {});
@@ -155,46 +157,30 @@ export default function Quiz({ quizData, onFinished }) {
             ? formatClock(Math.max(totalSecondsLeft, 0))
             : formatClock(elapsedTotal)}
         </span>
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="text-[#9FC9BE] text-base leading-none px-1"
+          aria-label="Open question palette"
+        >
+          ☰
+        </button>
       </div>
 
-      {/* Question Palette */}
-      <div className="mb-6 grid grid-cols-8 sm:grid-cols-10 gap-2">
-        {questions.map((_, idx) => {
-          let paletteClass = "bg-ink border-border text-[#5C7269]"; 
-          
-          if (submitted) {
-            if (picked[idx] === undefined) {
-              paletteClass = "bg-ink border-border text-[#5C7269]"; 
-            } else if (picked[idx] === questions[idx].correct_index) {
-              paletteClass = "bg-mint/20 border-mint text-mint"; 
-            } else {
-              paletteClass = "bg-rose/20 border-rose text-rose"; 
-            }
-          } else {
-            if (marked[idx]) {
-              paletteClass = "bg-purple-500/20 border-purple-500 text-purple-400"; 
-            } else if (picked[idx] !== undefined && picked[idx] !== "skipped") {
-              paletteClass = "bg-mint/20 border-mint text-mint"; 
-            } else if (visited[idx]) {
-              paletteClass = "bg-gold/20 border-gold text-gold"; 
-            }
-            
-            if (idx === current) {
-              paletteClass += " ring-2 ring-gold"; 
-            }
-          }
-
-          return (
-            <button
-              key={idx}
-              onClick={() => setCurrent(idx)} 
-              className={`h-8 w-8 rounded-md border text-xs font-mono flex items-center justify-center transition-colors ${paletteClass}`}
-            >
-              {idx + 1}
-            </button>
-          );
-        })}
-      </div>
+      {paletteOpen && (
+        <QuestionPalette
+          questions={questions}
+          current={current}
+          picked={picked}
+          submitted={submitted}
+          marked={marked}
+          visited={visited}
+          onJump={(idx) => {
+            setCurrent(idx);
+            setPaletteOpen(false);
+          }}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
       {/* Question Card */}
       <div className="bg-panel border border-border rounded-xl p-6">
         <div className="flex justify-between items-center mb-2">

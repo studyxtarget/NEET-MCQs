@@ -3,12 +3,12 @@ import React from "react";
 export default function QuestionPalette({
   questions,
   current,
-  answers,
-  flagged,
+  picked,
+  submitted,
+  marked,
   visited,
   onJump,
   onClose,
-  onSubmit,
 }) {
   return (
     <div
@@ -25,56 +25,63 @@ export default function QuestionPalette({
           </h3>
           <button
             onClick={onClose}
-            className="text-[#8A9490] text-lg leading-none"
+            className="text-[#9FC9BE] text-lg leading-none"
           >
             ✕
           </button>
         </div>
 
-        <div className="grid grid-cols-6 gap-2 mb-5">
-          {questions.map((_, idx) => {
-            const isAnswered = answers[idx] !== undefined;
-            const isFlagged = flagged.has(idx);
-            const isVisited = visited.has(idx);
-            const isCurrent = idx === current;
+        <div className="grid grid-cols-8 sm:grid-cols-10 gap-2 mb-6">
+          {questions.map((q, idx) => {
+            let paletteClass = "bg-ink border-border text-[#5C7269]";
 
-            let classes = "bg-ink border-[#262E2C] text-[#6B7873]"; // not visited
-            if (isVisited && !isAnswered) classes = "bg-ink border-gold text-gold";
-            if (isAnswered) classes = "bg-mint/20 border-mint text-[#C9E3D3]";
-            if (isFlagged) classes = "bg-rose/20 border-rose text-[#F0C4BE]";
+            if (submitted) {
+              if (picked[idx] === undefined) {
+                paletteClass = "bg-ink border-border text-[#5C7269]";
+              } else if (picked[idx] === questions[idx].correct_index) {
+                paletteClass = "bg-mint/20 border-mint text-mint";
+              } else {
+                paletteClass = "bg-rose/20 border-rose text-rose";
+              }
+            } else {
+              if (marked[idx]) {
+                paletteClass =
+                  "bg-purple-500/20 border-purple-500 text-purple-400";
+              } else if (picked[idx] !== undefined && picked[idx] !== "skipped") {
+                paletteClass = "bg-mint/20 border-mint text-mint";
+              } else if (visited[idx]) {
+                paletteClass = "bg-gold/20 border-gold text-gold";
+              }
+
+              if (idx === current) {
+                paletteClass += " ring-2 ring-gold";
+              }
+            }
 
             return (
               <button
                 key={idx}
                 onClick={() => onJump(idx)}
-                className={`relative aspect-square rounded-lg text-xs font-mono flex items-center justify-center border transition-colors ${classes} ${
-                  isCurrent ? "ring-2 ring-gold" : ""
-                }`}
+                className={`h-8 w-8 rounded-md border text-xs font-mono flex items-center justify-center transition-colors ${paletteClass}`}
               >
                 {idx + 1}
-                {isFlagged && (
-                  <span className="absolute -top-1.5 -right-1.5 text-[10px]">
-                    🚩
-                  </span>
-                )}
               </button>
             );
           })}
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-[#8A9490] font-mono mb-6">
-          <Legend swatch="bg-mint/30 border-mint" label="Answered" />
-          <Legend swatch="bg-ink border-gold" label="Visited" />
-          <Legend swatch="bg-ink border-[#262E2C]" label="Not visited" />
-          <Legend swatch="bg-rose/30 border-rose" label="Flagged" />
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-[#9FC9BE] font-mono">
+          <Legend swatch="bg-mint/20 border-mint" label="Answered" />
+          <Legend swatch="bg-gold/20 border-gold" label="Visited" />
+          <Legend swatch="bg-ink border-border" label="Not visited" />
+          <Legend
+            swatch="bg-purple-500/20 border-purple-500"
+            label="Marked for review"
+          />
+          {submitted && (
+            <Legend swatch="bg-rose/20 border-rose" label="Wrong" />
+          )}
         </div>
-
-        <button
-          onClick={onSubmit}
-          className="w-full bg-gold text-ink font-mono text-sm tracking-wide rounded py-3 hover:opacity-90 transition-opacity"
-        >
-          Submit Quiz
-        </button>
       </div>
     </div>
   );

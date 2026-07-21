@@ -1,13 +1,22 @@
 import React, { useState } from "react";
 import UploadBox from "./UploadBox";
+import TopicSelect from "./TopicSelect";
 import Instructions from "./Instructions";
 import Quiz from "./Quiz";
 import Result from "./Result";
+import Dashboard from "./Dashboard";
+import { saveAttempt } from "./quizHistory";
 
 export default function Home() {
-  const [stage, setStage] = useState("upload"); // upload | instructions | quiz | result
+  const [stage, setStage] = useState("upload"); // upload | topics | instructions | quiz | result
+  const [docInfo, setDocInfo] = useState(null);
   const [quizData, setQuizData] = useState(null);
   const [result, setResult] = useState(null);
+
+  const handleUploaded = (info) => {
+    setDocInfo(info);
+    setStage("topics");
+  };
 
   const handleQuizReady = (quiz) => {
     setQuizData(quiz);
@@ -19,11 +28,24 @@ export default function Home() {
   };
 
   const handleFinished = (res) => {
+    saveAttempt({
+      subject: quizData?.subject,
+      chapter: quizData?.chapter,
+      totalMarks: res.totalMarks,
+      maxMarks: res.maxMarks,
+      correctCount: res.correctCount,
+      wrongCount: res.wrongCount,
+      skippedCount: res.skippedCount,
+      totalQuestions: res.totalQuestions,
+      timeTakenSec: res.timeSummary?.totalTimeSec ?? null,
+      topicBreakdown: res.topicBreakdown,
+    });
     setResult(res);
     setStage("result");
   };
 
   const handleRestart = () => {
+    setDocInfo(null);
     setQuizData(null);
     setResult(null);
     setStage("upload");
@@ -33,6 +55,8 @@ export default function Home() {
     <>
       {stage === "upload" && (
         <div className="max-w-6xl mx-auto">
+          <Dashboard />
+
           {/* Hero */}
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gold/30 bg-gold/10 text-gold font-mono text-xs tracking-[3px] uppercase">
@@ -85,8 +109,16 @@ export default function Home() {
           </div>
 
           {/* Upload */}
-          <UploadBox onQuizReady={handleQuizReady} />
+          <UploadBox onUploaded={handleUploaded} />
         </div>
+      )}
+
+      {stage === "topics" && docInfo && (
+        <TopicSelect
+          docInfo={docInfo}
+          onQuizReady={handleQuizReady}
+          onBack={handleRestart}
+        />
       )}
 
       {stage === "instructions" && quizData && (

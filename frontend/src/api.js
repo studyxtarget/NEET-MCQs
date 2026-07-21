@@ -29,10 +29,20 @@ export async function uploadPdf(file) {
   return handleResponse(res);
 }
 
+export async function analyzeDocument({ docId }) {
+  const res = await fetch(`${BASE_URL}/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doc_id: docId }),
+  });
+  return handleResponse(res);
+}
+
 export async function generateQuiz({
   docId,
   subject,
   chapter,
+  topics,
   numQuestions,
   difficulty,
   mode,
@@ -44,6 +54,7 @@ export async function generateQuiz({
       doc_id: docId,
       subject,
       chapter: chapter || null,
+      topics: topics && topics.length ? topics : null,
       num_questions: numQuestions,
       difficulty,
       mode,

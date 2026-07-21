@@ -23,10 +23,27 @@ class UploadResponse(BaseModel):
     preview: str  # first ~300 chars, so frontend can show "looks right?" confirmation
 
 
+class AnalyzeRequest(BaseModel):
+    doc_id: str
+
+
+class DetectedTopic(BaseModel):
+    name: str
+    coverage: int = Field(..., ge=0, le=100, description="Rough % of the document this topic occupies")
+
+
+class AnalyzeResponse(BaseModel):
+    doc_id: str
+    subject: str
+    chapter: str
+    topics: List[DetectedTopic]
+
+
 class GenerateRequest(BaseModel):
     doc_id: str
     subject: str = Field(..., examples=["Biology"])
     chapter: Optional[str] = None
+    topics: Optional[List[str]] = None  # if set, only generate from these topics
     num_questions: int = Field(10, ge=1, le=50)
     difficulty: Difficulty = Difficulty.MEDIUM
     mode: GenerationMode = GenerationMode.GENERATE_NEW

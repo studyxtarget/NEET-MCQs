@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from models.schemas import (
     UploadResponse,
+    AnalyzeRequest,
+    AnalyzeResponse,
     GenerateRequest,
     GenerateResponse,
     MCQ,
@@ -15,8 +17,8 @@ from models.schemas import (
     SubmitResponse,
     TopicBreakdown,
 )
-from services.pdf_extractor import extract_text_from_pdf, PDFExtractionError
-from services.ai_generator import generate_mcqs, AIGenerationError
+from services.pdf_extractor import extract_text_from_pdf, chunk_text, PDFExtractionError
+from services.ai_generator import generate_mcqs, analyze_document, AIGenerationError
 
 app = FastAPI(title="NEET MCQ Generator API", version="0.1.0")
 
@@ -43,6 +45,9 @@ def health():
     return {"status": "ok"}
 
 
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
+
+
 @app.post("/upload", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":
@@ -53,6 +58,14 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     with dest_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
+
+    if dest_path.stat().st_size > MAX_UPLOAD_BYTES:
+        dest_path.unlink(missing_ok=True)
+        raise HTTPException(
+            413,
+            f"PDF is too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB). "
+            "Try splitting it into smaller chapters.",
+        )
 
     try:
         result = extract_text_from_pdf(str(dest_path))
@@ -81,23 +94,76 @@ async def upload_pdf(file: UploadFile = File(...)):
     )
 
 
+@app.post("/analyze", response_model=AnalyzeResponse)
+def analyze_document_endpoint(req: AnalyzeRequest):
+    doc = DOCUMENTS.get(req.doc_id)
+    if not doc:
+        raise HTTPException(404, "Unknown doc_id. Upload the PDF first via /upload.")
+
+    try:
+        analysis = analyze_document(doc["text"])
+    except AIGenerationError as e:
+        raise HTTPException(502, f"AI analysis failed: {e}")
+
+    return AnalyzeResponse(
+        doc_id=req.doc_id,
+        subject=analysis["subject"],
+        chapter=analysis["chapter"],
+        topics=analysis["topics"],
+    )
+
+
 @app.post("/generate", response_model=GenerateResponse)
 def generate_quiz(req: GenerateRequest):
     doc = DOCUMENTS.get(req.doc_id)
     if not doc:
         raise HTTPException(404, "Unknown doc_id. Upload the PDF first via /upload.")
 
+    chunks = chunk_text(doc["text"])
+
     try:
-        raw_questions = generate_mcqs(
-            text=doc["text"],
-            mode=req.mode,
-            num_questions=req.num_questions,
-            difficulty=req.difficulty,
-            subject=req.subject,
-            chapter=req.chapter,
-        )
+        if len(chunks) == 1:
+            raw_questions = generate_mcqs(
+                text=chunks[0],
+                mode=req.mode,
+                num_questions=req.num_questions,
+                difficulty=req.difficulty,
+                subject=req.subject,
+                chapter=req.chapter,
+                topics=req.topics,
+            )
+        else:
+            # Large PDF: split into chunks and spread the requested question
+            # count across them proportionally, so a 40-page NCERT chapter
+            # doesn't get silently truncated to just its first few pages.
+            raw_questions = []
+            base, remainder = divmod(req.num_questions, len(chunks))
+            for i, chunk in enumerate(chunks):
+                chunk_count = base + (1 if i < remainder else 0)
+                if chunk_count == 0:
+                    continue
+                chunk_questions = generate_mcqs(
+                    text=chunk,
+                    mode=req.mode,
+                    num_questions=chunk_count,
+                    difficulty=req.difficulty,
+                    subject=req.subject,
+                    chapter=req.chapter,
+                    topics=req.topics,
+                )
+                raw_questions.extend(chunk_questions)
     except AIGenerationError as e:
         raise HTTPException(502, f"AI generation failed: {e}")
+
+    # Trim in case rounding/AI overshoot produced a few more than requested.
+    raw_questions = raw_questions[: req.num_questions] if raw_questions else raw_questions
+
+    if not raw_questions:
+        raise HTTPException(
+            502,
+            "The AI didn't return any usable questions. Try a smaller "
+            "question count or a different PDF.",
+        )
 
     mcqs = [MCQ(**q) for q in raw_questions]
     QUIZZES[req.doc_id] = mcqs
